@@ -40,10 +40,12 @@ public class Packet
             DataLength = stream.ReadInt32();
             ClientId = stream.ReadInt32();
         }
-
-        Memory<byte> span = bytes;
-        var buffer = span.Slice(HeaderSize, DataLength).ToArray();
-        Deserialize(buffer);
+        if(DataLength>0)
+        {
+            Memory<byte> span = bytes;
+            var buffer = span.Slice(HeaderSize, DataLength).ToArray();
+            Deserialize(buffer);
+        }
     }
     protected virtual void Deserialize(byte[] bytes) { RawData = bytes; }
     protected virtual byte[] Serialize() { return RawData; }
@@ -57,7 +59,8 @@ public class Packet
             stream.Write(DataType);
             stream.Write(DataLength);
             stream.Write(ClientId);
-            stream.Write(body, 0, DataLength);
+            if(DataLength > 0)
+                stream.Write(body, 0, DataLength);
             var buffer = stream.GetBuffer();
             return buffer;
         }

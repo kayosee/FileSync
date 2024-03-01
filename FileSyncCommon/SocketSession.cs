@@ -24,8 +24,8 @@ public abstract class SocketSession
     private int _id;
 
     public bool IsConnected { get { return _socket.Connected; } }
-    protected abstract void ReceivePackage(Packet packet);
-    protected abstract void SocketError(int id, Socket socket, Exception e);
+    protected abstract void OnReceivePackage(Packet packet);
+    protected abstract void OnSocketError(int id, Socket socket, Exception e);
     public SocketSession(int id, Socket socket, bool encrypt, byte encryptKey)
     {
         _id = id;
@@ -53,7 +53,7 @@ public abstract class SocketSession
         }
         catch (SocketException e)
         {
-            SocketError(_id, _socket, e);
+            OnSocketError(_id, _socket, e);
         }
         return buffer;
     }
@@ -71,7 +71,7 @@ public abstract class SocketSession
         }
         catch (SocketException e)
         {
-            SocketError(_id, _socket, e);
+            OnSocketError(_id, _socket, e);
             return 0;
         }
     }
@@ -125,10 +125,8 @@ public abstract class SocketSession
             case PacketType.FileRequest:
                 result = new FileRequest(packet);
                 break;
-            case PacketType.FileNotification:
-                result = new FileNotification(packet);
-                break;
             default:
+                result = packet;
                 break;
         }
 
@@ -149,11 +147,12 @@ public abstract class SocketSession
             _ip = ip;
             _port = port;
             _socket.Connect(IPAddress.Parse(ip), port);
+            OnConnected();
             return true;
         }
         catch (Exception e)
         {
-            SocketError(_id, _socket, e);
+            OnSocketError(_id, _socket, e);
             Log.Error(e.Message);
             Log.Error(e.StackTrace);
             return false;
@@ -166,11 +165,12 @@ public abstract class SocketSession
         {
             _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             _socket.Connect(_ip, _port);
+            OnConnected();
             return true;
         }
         catch (Exception e)
         {
-            SocketError(_id, _socket, e);
+            OnSocketError(_id, _socket, e);
             Log.Error(e.Message);
             Log.Error(e.StackTrace);
             return false;
@@ -185,7 +185,7 @@ public abstract class SocketSession
             {
                 var packet = ReadPacket();
                 if (packet != null)
-                    ReceivePackage(packet);
+                    OnReceivePackage(packet);
             }
         });
 
@@ -202,4 +202,6 @@ public abstract class SocketSession
         _readThread.Start();
         _writeThread.Start();
     }
+
+    protected virtual void OnConnected() { }
 }
