@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
-public class FileResponse : Packet
+public class PacketFileResponse : Packet
 {
     private byte _responseType;
     private int _pathLength;
@@ -23,21 +23,17 @@ public class FileResponse : Packet
     public override bool Equals(object? obj)
     {
         if (obj == null) return false;
-        if (!(obj is FileResponse)) return false;
-        FileResponse other = obj as FileResponse;
+        if (!(obj is PacketFileResponse)) return false;
+        PacketFileResponse other = obj as PacketFileResponse;
 
         return other.Path == Path && other.Pos == Pos;
     }
-    public FileResponse(int clientId, byte responseType, string path) : base((int)PacketType.FileResponse, clientId)
+    public PacketFileResponse(int clientId, byte responseType, string path) : base((int)PacketType.FileResponse, clientId)
     {
         _responseType = responseType;
         _path = path;
     }
-    public FileResponse(byte[] bytes) : base(bytes)
-    {
-    }
-
-    public FileResponse(Packet packet) : base(packet)
+    public PacketFileResponse(byte[] bytes) : base(bytes)
     {
     }
     public bool EndOfFile
@@ -135,56 +131,5 @@ public class FileResponse : Packet
                 stream.Read(_fileData, 0, _fileDataLength);
             }
         }
-    }
-    public override IEnumerable<Packet>? Process(string folder)
-    {
-        var path = System.IO.Path.Combine(folder, Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
-        switch ((FileResponseType)ResponseType)
-        {
-            case FileResponseType.Empty:
-                {
-                    File.Create(path).Close();
-                    break;
-                }
-            case FileResponseType.FileDeleted:
-                {
-                    if (System.IO.Path.Exists(path))
-                    {
-                        File.Delete(path);
-                    }
-                    break;
-                }
-            case FileResponseType.Content:
-                {
-                    Log.Information($"收到文件'{path}',位置:{Pos},长度:{FileData.Length},总长:{FileDataTotal}");
-                    try
-                    {
-                        FileOperator.WriteFile(path + ".sync", Pos, FileData);
-
-                        if (Pos + FileDataLength >= FileDataTotal) //文件已经传输完成
-                        {
-                            FileOperator.SetupFile(path, LastWriteTime);
-                        }
-                        else //写入位置信息
-                        {
-                            FileOperator.AppendFile(path + ".sync", new FilePosition(Pos).GetBytes());
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Log.Error(e.Message);
-                        Log.Error(e.StackTrace);
-                    }
-                    break;
-                }
-            case FileResponseType.FileReadError:
-                {
-                    Log.Error($"远程文件读取失败:{Path}");
-                    break;
-                }
-            default:
-                break;
-        }
-        return null;
     }
 }

@@ -19,6 +19,28 @@ namespace FileSyncCommon;
 public class FileOperator
 {
     private static ConcurrentDictionary<string, bool> _syncing = new ConcurrentDictionary<string, bool>();
+    public static uint? GetCrc32(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+        else
+        {
+            using (var stream = File.OpenRead(path))
+            {
+                uint initial = 0;
+                var buffer = new byte[1024 * 1024];
+                int nret = 0;
+                while ((nret = stream.Read(buffer)) > 0)
+                {
+                    initial = Crc32Algorithm.Append(initial, buffer.Take(nret).ToArray());
+                }
+                return initial;
+            }
+        }
+    }
+
     public static long GetLastPosition(string path)
     {
         try

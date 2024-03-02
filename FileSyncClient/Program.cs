@@ -1,5 +1,4 @@
-﻿using HYFTPClient;
-using Serilog;
+﻿using Serilog;
 using System.Configuration;
 
 namespace FileSyncClient

@@ -41,7 +41,8 @@ public class ConcurrentBoundedQueue<T> : IEnumerable<T>
     public bool TryDequeue(out T item)
     {
         bool success = _queue.TryDequeue(out item);
-        if (success) Interlocked.Decrement(ref _approximateCount);
+        if (success) 
+            Interlocked.Decrement(ref _approximateCount);
         return success;
     }
 

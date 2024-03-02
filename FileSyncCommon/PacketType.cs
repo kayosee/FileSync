@@ -8,7 +8,7 @@ namespace FileSyncCommon;
 
 public enum PacketType
 {
-    Empty = 0,
+    Handshake = 0,
     FileInquire = 1,
     FileInformation = 2,
     FileRequest = 3,

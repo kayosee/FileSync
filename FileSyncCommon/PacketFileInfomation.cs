@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
-public class FileInfomation : Packet
+public class PacketFileInfomation : Packet
 {
     private long _createTime;
     private long _lastAccessTime;
@@ -16,7 +16,7 @@ public class FileInfomation : Packet
     private uint _checksum;
     private string _path;
     private int _pathLength;
-    public FileInfomation(int clientId, long createTime, long lastAccessTime, long lastWriteTime, long fileLength, uint checksum, string path) : base((int)PacketType.FileInformation, clientId)
+    public PacketFileInfomation(int clientId, long createTime, long lastAccessTime, long lastWriteTime, long fileLength, uint checksum, string path) : base((int)PacketType.FileInformation, clientId)
     {
         _createTime = createTime;
         _lastAccessTime = lastAccessTime;
@@ -25,15 +25,9 @@ public class FileInfomation : Packet
         _checksum = checksum;
         _path = path;
     }
-
-    public FileInfomation(byte[] bytes) : base(bytes)
+    public PacketFileInfomation(byte[] bytes) : base(bytes)
     {
     }
-
-    public FileInfomation(Packet packet) : base(packet)
-    {
-    }
-
     public long CreateTime { get => _createTime; set => _createTime = value; }
     public long LastAccessTime { get => _lastAccessTime; set => _lastAccessTime = value; }
     public long LastWriteTime { get => _lastWriteTime; set => _lastWriteTime = value; }
@@ -81,19 +75,5 @@ public class FileInfomation : Packet
 
             return stream.GetBuffer();
         }
-    }
-    public override IEnumerable<Packet>? Process(string folder)
-    {
-        var file = System.IO.Path.Combine(folder, Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
-        if (File.Exists(file))
-        {
-            var checksum = ChecksumHelper.GetCrc32(file);
-            if (checksum != Checksum)
-            {
-                var request = new FileRequest(ClientId, 0, Path);
-                return new Packet[] { request };
-            }
-        }
-        return null;
     }
 }

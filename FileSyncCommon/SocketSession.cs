@@ -3,6 +3,7 @@ using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -22,7 +23,8 @@ public abstract class SocketSession
     private string _ip;
     private int _port;
     private int _id;
-
+    protected ulong _readed;
+    protected ulong _writed;
     public bool IsConnected { get { return _socket.Connected; } }
     protected abstract void OnReceivePackage(Packet packet);
     protected abstract void OnSocketError(int id, Socket socket, Exception e);
@@ -31,11 +33,40 @@ public abstract class SocketSession
         _id = id;
         _socket = socket;
         _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-
+        _socket.NoDelay = true;
         _encrypt = encrypt;
         _encryptKey = encryptKey;
-        _packetQueue = new ConcurrentBoundedQueue<Packet>(64);
+        _packetQueue = new ConcurrentBoundedQueue<Packet>(6);
 
+        _readThread = new Thread((s) =>
+        {
+            while (true)
+            {
+                if (!_socket.Connected)
+                    continue;
+                var packet = ReadPacket();
+                if (packet != null)
+                    OnReceivePackage(packet);
+            }
+        });
+        _readThread.Name = "read";
+
+        _writeThread = new Thread((s) =>
+        {
+            while (true)
+            {
+                if (!_socket.Connected)
+                    continue;
+                if (_packetQueue.TryDequeue(out var packet))
+                {
+                    Write(packet.GetBytes());
+                }
+            }
+        });
+        _writeThread.Name = "write";
+
+        _readThread.Start();
+        _writeThread.Start();
     }
     private byte[] Read(int length)
     {
@@ -46,6 +77,8 @@ public abstract class SocketSession
             while (total < length)
             {
                 total += _socket.Receive(buffer, total, length - total, SocketFlags.None);
+                _readed += (ulong)total;
+                Log.Information($"_readed:{_readed}");
             }
 
             if (_encrypt)
@@ -66,8 +99,11 @@ public abstract class SocketSession
 
             if (_encrypt)
                 buffer = buffer.Apply(f => f ^= _encryptKey);
-            _socket.Send(buffer);
-            return buffer.Length;
+            int n=_socket.Send(buffer);
+            Debug.Assert(n == buffer.Length);
+            _writed += (ulong)n;
+            Log.Information($"writed:{_writed}");
+            return n;
         }
         catch (SocketException e)
         {
@@ -107,26 +143,25 @@ public abstract class SocketSession
             return null;
         }
 
-        Packet packet = new Packet(dataType, clientId);
-        packet.RawData = data;
-
         Packet result = null;
         switch ((PacketType)dataType)
         {
+            case PacketType.Handshake:
+                result=new PacketHandshake(whole.ToArray()); 
+                break;
             case PacketType.FileInquire:
-                result = new FileInquire(packet);
+                result = new PacketFileInquire(whole.ToArray());
                 break;
             case PacketType.FileInformation:
-                result = new FileInfomation(packet);
+                result = new PacketFileInfomation(whole.ToArray());
                 break;
             case PacketType.FileResponse:
-                result = new FileResponse(packet);
+                result = new PacketFileResponse(whole.ToArray());
                 break;
             case PacketType.FileRequest:
-                result = new FileRequest(packet);
+                result = new PacketFileRequest(whole.ToArray());
                 break;
             default:
-                result = packet;
                 break;
         }
 
@@ -137,7 +172,7 @@ public abstract class SocketSession
         return result;
     }
     public void SendPacket(Packet packet)
-    {
+    {      
         _packetQueue.TryEnqueue(packet);
     }
     public bool Connect(string ip, int port)
@@ -175,32 +210,6 @@ public abstract class SocketSession
             Log.Error(e.StackTrace);
             return false;
         }
-    }
-
-    public void Start()
-    {
-        _readThread = new Thread((s) =>
-        {
-            while (_socket.Connected)
-            {
-                var packet = ReadPacket();
-                if (packet != null)
-                    OnReceivePackage(packet);
-            }
-        });
-
-        _writeThread = new Thread((s) =>
-        {
-            while (_socket.Connected)
-            {
-                if (_packetQueue.TryDequeue(out var packet))
-                {
-                    Write(packet.GetBytes());
-                }
-            }
-        });
-        _readThread.Start();
-        _writeThread.Start();
     }
 
     protected virtual void OnConnected() { }

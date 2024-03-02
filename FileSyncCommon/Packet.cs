@@ -8,11 +8,10 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
-public class Packet
+public abstract class Packet
 {
     public const int Int32Size = sizeof(int);
     public const int HeaderSize = sizeof(byte) + sizeof(int) * 2;
-    public byte[] RawData { get; set; }
     public byte DataType { get; set; }
     public int DataLength { get; set; }
     public int ClientId { get; set; }
@@ -24,14 +23,6 @@ public class Packet
         }
     }
     public Packet(byte dataType, int clientId) { DataType = dataType; ClientId = clientId; }
-    public Packet(Packet packet)
-    {
-        ClientId = packet.ClientId;
-        DataType = packet.DataType;
-        DataLength = packet.DataLength;
-        RawData = packet.RawData;
-        Deserialize(packet.RawData);
-    }
     public Packet(byte[] bytes)
     {
         using (var stream = new ByteArrayStream(bytes))
@@ -47,9 +38,8 @@ public class Packet
             Deserialize(buffer);
         }
     }
-    protected virtual void Deserialize(byte[] bytes) { RawData = bytes; }
-    protected virtual byte[] Serialize() { return RawData; }
-    public virtual IEnumerable<Packet>? Process(string folder) { throw new NotImplementedException(); }
+    protected abstract void Deserialize(byte[] bytes);
+    protected abstract byte[] Serialize();
     public byte[] GetBytes()
     {
         var body = Serialize();
