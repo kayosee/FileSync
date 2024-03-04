@@ -19,7 +19,7 @@ public class PacketFileResponse : Packet
     private long _fileDataTotal;
     private uint _fileDataChecksum;
     private byte[] _fileData;
-    public const int MaxDataSize = 1500;
+    public const int MaxDataSize = 38284;
     public override bool Equals(object? obj)
     {
         if (obj == null) return false;
