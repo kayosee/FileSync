@@ -9,8 +9,11 @@ namespace FileSyncCommon;
 public enum PacketType
 {
     Handshake = 0,
-    FileInquire = 1,
-    FileInformation = 2,
-    FileRequest = 3,
-    FileResponse = 4,
+    FileListRequest = 1,
+    FileListInfoResponse= 2,
+    FileListDetailResponse = 3,
+    FileContentInfoRequest = 4,
+    FileContentInfoResponse = 5,
+    FileContentDetailRequest = 6,
+    FileContentDetailResponse= 7,
 }

@@ -12,9 +12,13 @@ public abstract class Packet
 {
     public const int Int32Size = sizeof(int);
     public const int HeaderSize = sizeof(byte) + sizeof(int) * 2;
-    public byte DataType { get; set; }
-    public int DataLength { get; set; }
-    public int ClientId { get; set; }
+    private byte _dataType;
+    private int _dataLength;
+    private int _clientId;
+
+    public PacketType DataType { get => (PacketType)_dataType; set => _dataType = (byte)value; }
+    public int DataLength { get => _dataLength; set => _dataLength = value; }
+    public int ClientId { get => _clientId; set => _clientId = value; }
     public int PacketSize
     {
         get
@@ -22,19 +26,19 @@ public abstract class Packet
             return HeaderSize + DataLength;
         }
     }
-    public Packet(byte dataType, int clientId) { DataType = dataType; ClientId = clientId; }
+    public Packet(PacketType dataType, int clientId) { _dataType = (byte)dataType; _clientId = clientId; }
     public Packet(byte[] bytes)
     {
         using (var stream = new ByteArrayStream(bytes))
         {
-            DataType = stream.ReadByte();
-            DataLength = stream.ReadInt32();
-            ClientId = stream.ReadInt32();
+            _dataType = stream.ReadByte();
+            _dataLength = stream.ReadInt32();
+            _clientId = stream.ReadInt32();
         }
-        if(DataLength>0)
+        if (_dataLength > 0)
         {
             Memory<byte> span = bytes;
-            var buffer = span.Slice(HeaderSize, DataLength).ToArray();
+            var buffer = span.Slice(HeaderSize, _dataLength).ToArray();
             Deserialize(buffer);
         }
     }
@@ -43,14 +47,14 @@ public abstract class Packet
     public byte[] GetBytes()
     {
         var body = Serialize();
-        DataLength = body.Length;
-        using (var stream = new ByteArrayStream(HeaderSize + DataLength))
+        _dataLength = body.Length;
+        using (var stream = new ByteArrayStream(HeaderSize + _dataLength))
         {
-            stream.Write(DataType);
-            stream.Write(DataLength);
-            stream.Write(ClientId);
-            if(DataLength > 0)
-                stream.Write(body, 0, DataLength);
+            stream.Write(_dataType);
+            stream.Write(_dataLength);
+            stream.Write(_clientId);
+            if (_dataLength > 0)
+                stream.Write(body, 0, _dataLength);
             var buffer = stream.GetBuffer();
             return buffer;
         }

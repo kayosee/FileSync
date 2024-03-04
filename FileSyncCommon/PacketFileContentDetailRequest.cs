@@ -7,19 +7,29 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
-public class PacketFileRequest : Packet
+public class PacketFileContentDetailRequest : Packet
 {
+    private long _inquireId;
+    private long _requestId;
     private long _startPos;
     private long _endPos;
     private int _pathLength;
     private string _path;
-    public PacketFileRequest(int clientId, long startPos, string path) : base((int)PacketType.FileRequest, clientId)
+    public PacketFileContentDetailRequest(int clientId, long inquireId, long requestId, long startPos, string path) : base(PacketType.FileRequest, clientId)
     {
+        _inquireId = inquireId;
+        _requestId = requestId;
         _startPos = startPos;
         _path = path;
     }
-    public PacketFileRequest(byte[] bytes) : base(bytes) { }
+    public PacketFileContentDetailRequest(byte[] bytes) : base(bytes) { }
+    /// <summary>
+    /// 请求文件的起始位置
+    /// </summary>
     public long StartPos { get => _startPos; set => _startPos = value; }
+    /// <summary>
+    /// 请求文件路径
+    /// </summary>
     public string Path
     {
         get => _path; set
@@ -28,6 +38,11 @@ public class PacketFileRequest : Packet
         }
     }
     public long EndPos { get => _endPos; set => _endPos = value; }
+    /// <summary>
+    /// 请求ID
+    /// </summary>
+    public long InquireId { get => _inquireId; set => _inquireId = value; }
+    public long RequestId { get => _requestId; set => _requestId = value; }
 
     protected override void Deserialize(byte[] bytes)
     {
@@ -36,6 +51,8 @@ public class PacketFileRequest : Packet
 
         using (var stream = new ByteArrayStream(bytes))
         {
+            _inquireId = stream.ReadInt64();
+            _requestId = stream.ReadInt64();
             _startPos = stream.ReadInt64();
             _endPos = stream.ReadInt64();
             _pathLength = stream.ReadInt32();
@@ -49,6 +66,8 @@ public class PacketFileRequest : Packet
     {
         using (var stream = new ByteArrayStream())
         {
+            stream.Write(_inquireId);
+            stream.Write(_requestId);
             stream.Write(_startPos);
             stream.Write(_endPos);
 

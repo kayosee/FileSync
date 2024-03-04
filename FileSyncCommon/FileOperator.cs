@@ -18,7 +18,6 @@ namespace FileSyncCommon;
 
 public class FileOperator
 {
-    private static ConcurrentDictionary<string, bool> _syncing = new ConcurrentDictionary<string, bool>();
     public static uint? GetCrc32(string path)
     {
         if (!File.Exists(path))
@@ -56,53 +55,41 @@ public class FileOperator
         }
     }
 
-    public static int WriteFile(string path, long position, byte[] bytes)
+    public static void WriteFile(string path, long position, byte[] bytes)
     {
-        try
+        if (!Path.Exists(path))
         {
-            if (!Path.Exists(path))
+            var folder = Path.GetDirectoryName(path);
+            if (!Directory.Exists(folder))
             {
-                var folder = Path.GetDirectoryName(path);
-                if (!Directory.Exists(folder))
-                {
-                    Directory.CreateDirectory(folder);
-                }
+                Directory.CreateDirectory(folder);
             }
-
-            _syncing.AddOrUpdate(path, true, (key, value) => value);
-
-            using (var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, 0, FileOptions.WriteThrough))
-            {
-                var x = stream.Seek(position, SeekOrigin.Begin);
-                Debug.Assert(x == position);
-
-                stream.Write(bytes, 0, bytes.Length);
-                stream.Flush();
-                stream.Close();
-            }
-
-            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read))
-            {
-                var x = stream.Seek(position, SeekOrigin.Begin);
-                Debug.Assert(x == position);
-                var buffer = new byte[bytes.Length];
-                int n = stream.Read(buffer, 0, buffer.Length);
-                stream.Close();
-
-                Debug.Assert(n == bytes.Length);
-                var a = Crc32Algorithm.Compute(buffer);
-                var b = Crc32Algorithm.Compute(bytes);
-                Debug.Assert(a == b);
-            }
-
-            return bytes.Length;
-
         }
-        catch (Exception e)
+
+        using (var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, 0, FileOptions.WriteThrough))
         {
-            Log.Error(e.Message);
-            Log.Error(e.StackTrace);
-            return 0;
+            var x = stream.Seek(position, SeekOrigin.Begin);
+            Debug.Assert(x == position);
+
+            stream.Write(bytes, 0, bytes.Length);
+            stream.Flush();
+            stream.Close();
+        }
+
+        using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read))
+        {
+            var x = stream.Seek(position, SeekOrigin.Begin);
+            if (x != position)
+                throw new FileSeekException(path, position);
+
+            var buffer = new byte[bytes.Length];
+            stream.Read(buffer, 0, buffer.Length);
+            stream.Close();
+
+            var newChecksum = Crc32Algorithm.Compute(buffer);
+            var oldChecksum = Crc32Algorithm.Compute(bytes);
+            if (newChecksum != oldChecksum)
+                throw new FileChecksumException(path, position, oldChecksum, newChecksum);
         }
     }
     public static int AppendFile(string path, byte[] bytes)
@@ -129,11 +116,5 @@ public class FileOperator
         File.Move(path + ".sync", path, true);
         FileInfo fi = new FileInfo(path);
         fi.LastWriteTime = DateTime.FromBinary(lastWriteTime);
-        _syncing.Remove(path, out var _);
-    }
-
-    public static bool IsFileSyncing(string path)
-    {
-        return _syncing.GetValueOrDefault(path, false);
     }
 }

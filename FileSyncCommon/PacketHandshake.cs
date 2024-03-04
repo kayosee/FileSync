@@ -12,7 +12,7 @@ namespace FileSyncCommon
         {
         }
 
-        public PacketHandshake(int clientId) : base((byte)(PacketType.Handshake), clientId)
+        public PacketHandshake(int clientId) : base(PacketType.Handshake, clientId)
         {
         }
         protected override void Deserialize(byte[] bytes)

@@ -8,8 +8,10 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
-public class PacketFileResponse : Packet
+public class PacketFileContentDetailResponse : Packet
 {
+    private long _inquireId;
+    private long _requestId;
     private byte _responseType;
     private int _pathLength;
     private string _path;
@@ -23,19 +25,24 @@ public class PacketFileResponse : Packet
     public override bool Equals(object? obj)
     {
         if (obj == null) return false;
-        if (!(obj is PacketFileResponse)) return false;
-        PacketFileResponse other = obj as PacketFileResponse;
+        if (!(obj is PacketFileContentDetailResponse)) return false;
+        PacketFileContentDetailResponse other = obj as PacketFileContentDetailResponse;
 
         return other.Path == Path && other.Pos == Pos;
     }
-    public PacketFileResponse(int clientId, byte responseType, string path) : base((int)PacketType.FileResponse, clientId)
+    public PacketFileContentDetailResponse(int clientId,long inquireId,long requestId, FileResponseType responseType, string path) : base(PacketType.FileResponse, clientId)
     {
-        _responseType = responseType;
+        _inquireId = inquireId;
+        _requestId = requestId;
+        _responseType = (byte)responseType;
         _path = path;
     }
-    public PacketFileResponse(byte[] bytes) : base(bytes)
+    public PacketFileContentDetailResponse(byte[] bytes) : base(bytes)
     {
     }
+    /// <summary>
+    /// 最后一个文件段
+    /// </summary>
     public bool EndOfFile
     {
         get
@@ -76,13 +83,23 @@ public class PacketFileResponse : Packet
     /// <summary>
     /// 响应类型
     /// </summary>
-    public byte ResponseType { get => _responseType; set => _responseType = value; }
+    public FileResponseType ResponseType { get => (FileResponseType)_responseType; set => _responseType = (byte)value; }
+    /// <summary>
+    /// 上次修改时间
+    /// </summary>
     public long LastWriteTime { get => _lastWriteTime; set => _lastWriteTime = value; }
+    /// <summary>
+    /// 请求ID
+    /// </summary>
+    public long InquireId { get => _inquireId; set => _inquireId = value; }
+    public long RequestId { get => _requestId; set => _requestId = value; }
 
     protected override byte[] Serialize()
     {
         using (var stream = new ByteArrayStream())
         {
+            stream.Write(_inquireId);
+            stream.Write(_requestId);
             stream.Write(_responseType);
 
             byte[] buffer = Encoding.UTF8.GetBytes(Path);
@@ -112,6 +129,8 @@ public class PacketFileResponse : Packet
 
         using (var stream = new ByteArrayStream(bytes))
         {
+            _inquireId = stream.ReadInt64();
+            _requestId = stream.ReadInt64();
             _responseType = stream.ReadByte();
             _pathLength = stream.ReadInt32();
 

@@ -27,24 +27,38 @@ namespace FileSyncServer
         {
             if (packet != null)
             {
-                switch ((PacketType)packet.DataType)
+                switch (packet.DataType)
                 {
-                    case PacketType.FileInquire:
-                        DoFileInquire((PacketFileInquire)packet);
+                    case PacketType.FileListRequest:
+                        DoFileListRequest((PacketFileListRequest)packet);
                         break;
-                    case PacketType.FileRequest:
-                        DoFileRequest((PacketFileRequest)packet);
+                    case PacketType.FileContentInfoRequest:
+                        DoFileContentInfoRequest((PacketFileContentInfoRequest)packet);
+                        break;
+                    case PacketType.FileContentDetailRequest:
+                        DoFileContentDetailRequest((PacketFileContentDetailRequest)packet);
                         break;
                     default: break;
                 }
             }
         }
 
-        private void DoFileRequest(PacketFileRequest packet)
+        private void DoFileContentInfoRequest(PacketFileContentInfoRequest packet)
+        {
+            var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
+            var fileInfo= new FileInfo(localPath);
+
+            var totalCount = (long)(fileInfo.Length / PacketFileContentDetailResponse.MaxDataSize);
+            var totalSize = fileInfo.Length;
+            var response = new PacketFileContentInfoResponse(packet.ClientId, packet.InquireId, packet.RequestId, totalCount, totalSize, packet.Path);
+            SendPacket(response);
+        }
+
+        private void DoFileContentDetailRequest(PacketFileContentDetailRequest packet)
         {
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             if (!File.Exists(localPath))
-                SendPacket(new PacketFileResponse(packet.ClientId, (byte)FileResponseType.FileDeleted, packet.Path));
+                SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.InquireId, packet.RequestId, FileResponseType.FileDeleted, packet.Path));
             else
             {
                 using (var stream = File.OpenRead(localPath))
@@ -52,20 +66,22 @@ namespace FileSyncServer
                     if (packet.StartPos > stream.Length)
                     {
                         Log.Error($"请求的位置{packet.StartPos}超出该文件'{localPath}'的大小{stream.Length}");
-                        SendPacket(new PacketFileResponse(packet.ClientId, (byte)FileResponseType.FileReadError, packet.Path));
+                        SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.InquireId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
                     }
                     if (stream.Length == 0)
                     {
-                        SendPacket(new PacketFileResponse(packet.ClientId, (byte)FileResponseType.Empty, packet.Path));
+                        var lastWriteTime = new FileInfo(localPath).LastWriteTime.Ticks;
+                        var response = new PacketFileContentDetailResponse(packet.ClientId, packet.InquireId, packet.RequestId, FileResponseType.Empty, packet.Path);
+                        response.LastWriteTime = lastWriteTime;
+                        SendPacket(response);
                     }
-
-                    stream.Seek(packet.StartPos, SeekOrigin.Begin);
-
-                    var lastWriteTime = new FileInfo(localPath).LastWriteTime.Ticks;
-                    var buffer = new byte[PacketFileResponse.MaxDataSize];
-                    while (stream.Position < stream.Length)
+                    else
                     {
-                        var response = new PacketFileResponse(packet.ClientId, (byte)FileResponseType.Content, packet.Path);
+                        stream.Seek(packet.StartPos, SeekOrigin.Begin);
+
+                        var lastWriteTime = new FileInfo(localPath).LastWriteTime.Ticks;
+                        var buffer = new byte[PacketFileContentDetailResponse.MaxDataSize];
+                        var response = new PacketFileContentDetailResponse(packet.ClientId, packet.InquireId, packet.RequestId, FileResponseType.Content, packet.Path);
                         response.Pos = stream.Position;
                         response.FileDataLength = stream.Read(buffer);
                         response.FileData = buffer.Take(response.FileDataLength).ToArray();
@@ -82,15 +98,19 @@ namespace FileSyncServer
             //Log.Information($"{++_total}");
             base.SendPacket(packet);
         }
-        private void DoFileInquire(PacketFileInquire packet)
+        private void DoFileListRequest(PacketFileListRequest packet)
         {
             var path = _folder;
-            var output = new List<PacketFileInfomation>();
-            GetFiles(packet.ClientId, new DirectoryInfo(path), DateTime.Now.AddDays(_daysBefore), ref output);
+            var output = new List<PacketFileListDetailResponse>();
+            GetFiles(packet.ClientId, packet.InquireId, new DirectoryInfo(path), DateTime.Now.AddDays(_daysBefore), ref output);
 
+            var fileTotalInfo = new PacketFileListInfoResponse(packet.ClientId, packet.InquireId, output.LongCount(), output.Sum(f => f.FileLength));
+            SendPacket(fileTotalInfo);
+            
             foreach (var file in output)
             {
                 file.Path = file.Path.Replace(_folder, "");
+                file.Total = output.Count;
                 SendPacket(file);
             }
         }
@@ -103,7 +123,7 @@ namespace FileSyncServer
             }
         }
 
-        private void GetFiles(int clientId, DirectoryInfo directory, DateTime createBefore, ref List<PacketFileInfomation> result)
+        private void GetFiles(int clientId, long inquireId, DirectoryInfo directory, DateTime createBefore, ref List<PacketFileListDetailResponse> result)
         {
             try
             {
@@ -111,18 +131,18 @@ namespace FileSyncServer
                 {
                     var query = from r in directory.GetFiles("*.*")
                                 where r.Extension != ".sync" && r.CreationTime >= createBefore
-                                select new PacketFileInfomation(clientId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, FileOperator.GetCrc32(r.FullName).GetValueOrDefault(), r.FullName);
+                                select new PacketFileListDetailResponse(clientId, inquireId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, FileOperator.GetCrc32(r.FullName).GetValueOrDefault(), r.FullName);
 
                     result.AddRange(query.Distinct());
 
                     var subDirs = directory.GetDirectories();
                     foreach (var subDir in subDirs)
                     {
-                        GetFiles(clientId, subDir, createBefore, ref result);
+                        GetFiles(clientId, inquireId, subDir, createBefore, ref result);
 
                         query = from r in subDir.GetFiles("*.*")
                                 where r.Extension != ".sync"
-                                select new PacketFileInfomation(clientId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, FileOperator.GetCrc32(r.FullName).GetValueOrDefault(), r.FullName);
+                                select new PacketFileListDetailResponse(clientId, inquireId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, FileOperator.GetCrc32(r.FullName).GetValueOrDefault(), r.FullName);
 
                         result.AddRange(query.Distinct());
                     }

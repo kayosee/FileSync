@@ -130,16 +130,22 @@ public abstract class SocketSession
                 result=new PacketHandshake(whole.ToArray()); 
                 break;
             case PacketType.FileInquire:
-                result = new PacketFileInquire(whole.ToArray());
+                result = new PacketFileListRequest(whole.ToArray());
                 break;
-            case PacketType.FileInformation:
-                result = new PacketFileInfomation(whole.ToArray());
+            case PacketType.FileTotalInfo:
+                result = new PacketFileListInfoResponse(whole.ToArray());
                 break;
-            case PacketType.FileResponse:
-                result = new PacketFileResponse(whole.ToArray());
+            case PacketType.FileDetailInfo:
+                result = new PacketFileListDetailResponse(whole.ToArray());
+                break;
+            case PacketType.FileResponseInfo:
+                result = new PacketFileContentInfoResponse(whole.ToArray());
+                break;
+            case PacketType.FileResponseDetail:
+                result = new PacketFileContentDetailResponse(whole.ToArray());
                 break;
             case PacketType.FileRequest:
-                result = new PacketFileRequest(whole.ToArray());
+                result = new PacketFileContentDetailRequest(whole.ToArray());
                 break;
             default:
                 break;
