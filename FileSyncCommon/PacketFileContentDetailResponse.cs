@@ -30,7 +30,7 @@ public class PacketFileContentDetailResponse : Packet
 
         return other.Path == Path && other.Pos == Pos;
     }
-    public PacketFileContentDetailResponse(int clientId,long inquireId,long requestId, FileResponseType responseType, string path) : base(PacketType.FileResponse, clientId)
+    public PacketFileContentDetailResponse(int clientId,long inquireId,long requestId, FileResponseType responseType, string path) : base(PacketType.FileContentDetailResponse, clientId)
     {
         _inquireId = inquireId;
         _requestId = requestId;

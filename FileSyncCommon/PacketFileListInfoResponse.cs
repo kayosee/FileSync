@@ -15,7 +15,7 @@ namespace FileSyncCommon
         {
         }
 
-        public PacketFileListInfoResponse(int clientId,long inquireId,long fileCount,long totalSize) : base(PacketType.FileTotalInfo, clientId)
+        public PacketFileListInfoResponse(int clientId,long inquireId,long fileCount,long totalSize) : base(PacketType.FileListInfoResponse, clientId)
         {
             _inquireId = inquireId;
             _fileCount = fileCount;

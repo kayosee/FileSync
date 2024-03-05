@@ -21,8 +21,8 @@ public abstract class SocketSession
     private string _ip;
     private int _port;
     private int _id;
-    protected ulong _readed;
-    protected ulong _writed;
+    protected ulong _read;
+    protected ulong _written;
     public bool IsConnected { get { return _socket.Connected; } }
     protected abstract void OnReceivePackage(Packet packet);
     protected abstract void OnSocketError(int id, Socket socket, Exception e);
@@ -40,6 +40,7 @@ public abstract class SocketSession
             {
                 if (!_socket.Connected)
                     continue;
+
                 var packet = ReadPacket();
                 if (packet != null)
                     OnReceivePackage(packet);
@@ -57,8 +58,8 @@ public abstract class SocketSession
             while (total < length)
             {
                 total += _socket.Receive(buffer, total, length - total, SocketFlags.None);
-                _readed += (ulong)total;
-                Log.Information($"readed:{_readed},writed:{_writed}");
+                _read += (ulong)total;
+                Log.Information($"read:{_read},writed:{_written}");
             }
 
             if (_encrypt)
@@ -79,10 +80,11 @@ public abstract class SocketSession
 
             if (_encrypt)
                 buffer = buffer.Apply(f => f ^= _encryptKey);
-            int n=_socket.Send(buffer);
+
+            int n = _socket.Send(buffer);
             Debug.Assert(n == buffer.Length);
-            _writed += (ulong)n;
-            Log.Information($"readed:{_readed},writed:{_writed}");
+            _written += (ulong)n;
+            Log.Information($"read:{_read},writed:{_written}");
             return n;
         }
         catch (SocketException e)
@@ -127,25 +129,28 @@ public abstract class SocketSession
         switch ((PacketType)dataType)
         {
             case PacketType.Handshake:
-                result=new PacketHandshake(whole.ToArray()); 
+                result = new PacketHandshake(whole.ToArray());
                 break;
-            case PacketType.FileInquire:
+            case PacketType.FileListRequest:
                 result = new PacketFileListRequest(whole.ToArray());
                 break;
-            case PacketType.FileTotalInfo:
+            case PacketType.FileListInfoResponse:
                 result = new PacketFileListInfoResponse(whole.ToArray());
                 break;
-            case PacketType.FileDetailInfo:
+            case PacketType.FileListDetailResponse:
                 result = new PacketFileListDetailResponse(whole.ToArray());
                 break;
-            case PacketType.FileResponseInfo:
+            case PacketType.FileContentInfoRequest:
+                result = new PacketFileContentInfoRequest(whole.ToArray());
+                break;
+            case PacketType.FileContentInfoResponse:
                 result = new PacketFileContentInfoResponse(whole.ToArray());
                 break;
-            case PacketType.FileResponseDetail:
-                result = new PacketFileContentDetailResponse(whole.ToArray());
-                break;
-            case PacketType.FileRequest:
+            case PacketType.FileContentDetailRequest:
                 result = new PacketFileContentDetailRequest(whole.ToArray());
+                break;
+            case PacketType.FileContentDetailResponse:
+                result = new PacketFileContentDetailResponse(whole.ToArray());
                 break;
             default:
                 break;

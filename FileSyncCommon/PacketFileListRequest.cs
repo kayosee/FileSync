@@ -16,7 +16,7 @@ public class PacketFileListRequest : Packet
     public string Path { get => _path; set => _path = value; }
     public long InquireId { get => _inquireId; set => _inquireId = value; }
 
-    public PacketFileListRequest(int clientId,long inquireId, string path) : base(PacketType.FileInquire, clientId)
+    public PacketFileListRequest(int clientId,long inquireId, string path) : base(PacketType.FileListRequest, clientId)
     {
         _inquireId = inquireId;
         _path = path;

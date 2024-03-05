@@ -46,11 +46,11 @@ namespace FileSyncServer
         private void DoFileContentInfoRequest(PacketFileContentInfoRequest packet)
         {
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
-            var fileInfo= new FileInfo(localPath);
+            var fileInfo = new FileInfo(localPath);
 
-            var totalCount = (long)(fileInfo.Length / PacketFileContentDetailResponse.MaxDataSize);
+            var totalCount = (long)((fileInfo.Length - packet.StartPos) / PacketFileContentDetailResponse.MaxDataSize);
             var totalSize = fileInfo.Length;
-            var response = new PacketFileContentInfoResponse(packet.ClientId, packet.InquireId, packet.RequestId, totalCount, totalSize, packet.Path);
+            var response = new PacketFileContentInfoResponse(packet.ClientId, packet.InquireId, packet.RequestId, packet.StartPos, totalCount, totalSize, packet.Path);
             SendPacket(response);
         }
 
@@ -93,19 +93,14 @@ namespace FileSyncServer
                 }
             }
         }
-        public new void SendPacket(Packet packet)
-        {
-            //Log.Information($"{++_total}");
-            base.SendPacket(packet);
-        }
         private void DoFileListRequest(PacketFileListRequest packet)
         {
             var path = _folder;
             var output = new List<PacketFileListDetailResponse>();
-            GetFiles(packet.ClientId, packet.InquireId, new DirectoryInfo(path), DateTime.Now.AddDays(_daysBefore), ref output);
+            GetFiles(packet.ClientId, packet.InquireId, new DirectoryInfo(path), DateTime.Now.AddDays(0-_daysBefore), ref output);
 
-            var fileTotalInfo = new PacketFileListInfoResponse(packet.ClientId, packet.InquireId, output.LongCount(), output.Sum(f => f.FileLength));
-            SendPacket(fileTotalInfo);
+            var fileListInfoResponse = new PacketFileListInfoResponse(packet.ClientId, packet.InquireId, output.LongCount(), output.Sum(f => f.FileLength));
+            SendPacket(fileListInfoResponse);
             
             foreach (var file in output)
             {

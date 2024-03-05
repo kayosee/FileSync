@@ -15,7 +15,7 @@ public class PacketFileContentDetailRequest : Packet
     private long _endPos;
     private int _pathLength;
     private string _path;
-    public PacketFileContentDetailRequest(int clientId, long inquireId, long requestId, long startPos, string path) : base(PacketType.FileRequest, clientId)
+    public PacketFileContentDetailRequest(int clientId, long inquireId, long requestId, long startPos, string path) : base(PacketType.FileContentDetailRequest, clientId)
     {
         _inquireId = inquireId;
         _requestId = requestId;

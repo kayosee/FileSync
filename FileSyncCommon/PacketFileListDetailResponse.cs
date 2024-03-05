@@ -18,7 +18,7 @@ public class PacketFileListDetailResponse : Packet
     private uint _checksum;
     private string _path;
     private int _pathLength;
-    public PacketFileListDetailResponse(int clientId, long inquireId, long createTime, long lastAccessTime, long lastWriteTime, long fileLength, uint checksum, string path) : base(PacketType.FileDetailInfo, clientId)
+    public PacketFileListDetailResponse(int clientId, long inquireId, long createTime, long lastAccessTime, long lastWriteTime, long fileLength, uint checksum, string path) : base(PacketType.FileListDetailResponse, clientId)
     {
         _inquireId = inquireId;
         _createTime = createTime;
