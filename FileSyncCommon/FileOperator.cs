@@ -18,6 +18,7 @@ namespace FileSyncCommon;
 
 public class FileOperator
 {
+    private const int BufferSize = 1024 * 1024;
     public static uint? GetCrc32(string path)
     {
         if (!File.Exists(path))
@@ -29,7 +30,7 @@ public class FileOperator
             using (var stream = File.OpenRead(path))
             {
                 uint initial = 0;
-                var buffer = new byte[1024 * 1024];
+                var buffer = new byte[BufferSize];
                 int nret = 0;
                 while ((nret = stream.Read(buffer)) > 0)
                 {
@@ -39,6 +40,36 @@ public class FileOperator
             }
         }
     }
+
+    public static uint? GetCrc32(string path, long endPos)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+        else
+        {
+            using (var stream = File.OpenRead(path))
+            {
+                uint initial = 0;
+                var total = 0;
+                var buffer = new byte[BufferSize];
+                int nret = 0;
+                while (total < endPos && nret > 0)
+                {
+                    nret = stream.Read(buffer);
+                    if (total + nret > endPos)
+                    {
+                        nret = (int)endPos - total;
+                    }
+                    initial = Crc32Algorithm.Append(initial, buffer.Take(nret).ToArray());
+                    total += nret;
+                }
+                return initial;
+            }
+        }
+    }
+
 
     public static long GetLastPosition(string path)
     {
@@ -55,7 +86,7 @@ public class FileOperator
         }
     }
 
-    public static void WriteFile(string path, long position, byte[] bytes)
+    public static void WriteFile(string path, long position, byte[] bytes,FilePosition? filePosition)
     {
         if (!Path.Exists(path))
         {
@@ -66,12 +97,18 @@ public class FileOperator
             }
         }
 
+        var temp = new List<byte>();
+        temp.AddRange(bytes);
+
+        if (filePosition != null)
+            temp.AddRange(filePosition.GetBytes());
+
         using (var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, 0, FileOptions.WriteThrough))
         {
             var x = stream.Seek(position, SeekOrigin.Begin);
             Debug.Assert(x == position);
 
-            stream.Write(bytes, 0, bytes.Length);
+            stream.Write(temp.ToArray(), 0, temp.Count);
             stream.Flush();
             stream.Close();
         }

@@ -59,7 +59,7 @@ public abstract class SocketSession
             {
                 total += _socket.Receive(buffer, total, length - total, SocketFlags.None);
                 _read += (ulong)total;
-                Log.Information($"read:{_read},writed:{_written}");
+                Log.Information($"read:{_read},written:{_written}");
             }
 
             if (_encrypt)
@@ -84,7 +84,7 @@ public abstract class SocketSession
             int n = _socket.Send(buffer);
             Debug.Assert(n == buffer.Length);
             _written += (ulong)n;
-            Log.Information($"read:{_read},writed:{_written}");
+            Log.Information($"read:{_read},written:{_written}");
             return n;
         }
         catch (SocketException e)
@@ -178,7 +178,6 @@ public abstract class SocketSession
         }
         catch (Exception e)
         {
-            OnSocketError(_id, _socket, e);
             Log.Error(e.Message);
             Log.Error(e.StackTrace);
             return false;
@@ -196,7 +195,6 @@ public abstract class SocketSession
         }
         catch (Exception e)
         {
-            OnSocketError(_id, _socket, e);
             Log.Error(e.Message);
             Log.Error(e.StackTrace);
             return false;

@@ -48,9 +48,21 @@ namespace FileSyncServer
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             var fileInfo = new FileInfo(localPath);
 
-            var totalCount = (long)((fileInfo.Length - packet.StartPos) / PacketFileContentDetailResponse.MaxDataSize);
-            var totalSize = fileInfo.Length;
-            var response = new PacketFileContentInfoResponse(packet.ClientId, packet.InquireId, packet.RequestId, packet.StartPos, totalCount, totalSize, packet.Path);
+            var totalCount = (long)((fileInfo.Length - packet.LastPos) / PacketFileContentDetailResponse.MaxDataSize);
+            var totalSize = fileInfo.Length - packet.LastPos;
+            var lastPos = packet.LastPos;
+            uint checksum = 0;
+            if (packet.Checksum != 0 && packet.LastPos > 0)
+            {
+                checksum = FileOperator.GetCrc32(localPath, packet.LastPos).GetValueOrDefault();
+                if (checksum != packet.Checksum)//校验不一致，重新传输
+                {
+                    totalCount = (long)((fileInfo.Length) / PacketFileContentDetailResponse.MaxDataSize);
+                    totalSize = fileInfo.Length;
+                    lastPos = 0;
+                }
+            }
+            var response = new PacketFileContentInfoResponse(packet.ClientId, packet.InquireId, packet.RequestId, lastPos, checksum, totalCount, totalSize, packet.Path);
             SendPacket(response);
         }
 

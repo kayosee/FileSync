@@ -11,7 +11,8 @@ namespace FileSyncCommon
     {
         private long _inquireId;
         private long _requestId;
-        private long _startPos;
+        private long _lastPos;
+        private uint _checksum;
         private long _totalCount;
         private long _totalSize;
         private int _pathLength;
@@ -20,11 +21,12 @@ namespace FileSyncCommon
         {
         }
 
-        public PacketFileContentInfoResponse(int clientId, long inquireId,long requestId,long startPos, long totalCount, long totalSize, string path) : base(PacketType.FileContentInfoResponse, clientId)
+        public PacketFileContentInfoResponse(int clientId, long inquireId,long requestId,long lastPos,uint checksum, long totalCount, long totalSize, string path) : base(PacketType.FileContentInfoResponse, clientId)
         {
             _inquireId = inquireId;
             _requestId = requestId;
-            _startPos = startPos;
+            _lastPos = lastPos;
+            _checksum = checksum;
             _totalCount = totalCount;
             _totalSize = totalSize;
             _path = path;
@@ -49,7 +51,14 @@ namespace FileSyncCommon
         /// 请求ID
         /// </summary>
         public long RequestId { get => _requestId; set => _requestId = value; }
-        public long StartPos { get => _startPos; set => _startPos = value; }
+        /// <summary>
+        /// 最后传输的位置
+        /// </summary>
+        public long LastPos { get => _lastPos; set => _lastPos = value; }
+        /// <summary>
+        /// 按照传输的位置计算检验（LASTPOS>0）
+        /// </summary>
+        public uint Checksum { get => _checksum; set => _checksum = value; }
 
         protected override void Deserialize(byte[] bytes)
         {
@@ -57,7 +66,8 @@ namespace FileSyncCommon
             {
                 _inquireId = stream.ReadInt64();
                 _requestId = stream.ReadInt64();
-                _startPos = stream.ReadInt64();
+                _lastPos = stream.ReadInt64();
+                _checksum = stream.ReadUInt32();
                 _totalCount = stream.ReadInt64();
                 _totalSize = stream.ReadInt64();
                 _pathLength = stream.ReadInt32();
@@ -77,7 +87,8 @@ namespace FileSyncCommon
             {
                 stream.Write(_inquireId);
                 stream.Write(_requestId);
-                stream.Write(_startPos);
+                stream.Write(_lastPos);
+                stream.Write(_checksum);
                 stream.Write(_totalCount);
                 stream.Write(_totalSize);
 
