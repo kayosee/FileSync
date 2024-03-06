@@ -96,18 +96,18 @@ public class FileOperator
             }
         }
 
-        var temp = new List<byte>();
-        temp.AddRange(bytes);
-
         if (filePosition != null)
-            temp.AddRange(new FilePosition(filePosition.Value).GetBytes());
+        {
+            var suffix = new FilePosition(filePosition.Value).GetBytes();
+            bytes = bytes.Concat(suffix).ToArray();
+        }
 
         using (var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, 0, FileOptions.WriteThrough))
         {
             var x = stream.Seek(position, SeekOrigin.Begin);
             Debug.Assert(x == position);
 
-            stream.Write(temp.ToArray(), 0, temp.Count);
+            stream.Write(bytes, 0, bytes.Length);
             stream.Flush();
             stream.Close();
         }

@@ -138,7 +138,7 @@ namespace FileSyncServer
                 {
                     var query = from r in directory.GetFiles("*.*")
                                 where r.Extension != ".sync" && r.CreationTime >= createBefore
-                                select new PacketFileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, FileOperator.GetCrc32(r.FullName).GetValueOrDefault(), r.FullName);
+                                select new PacketFileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0, r.FullName);
 
                     result.AddRange(query.Distinct());
 
@@ -149,7 +149,7 @@ namespace FileSyncServer
 
                         query = from r in subDir.GetFiles("*.*")
                                 where r.Extension != ".sync"
-                                select new PacketFileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, FileOperator.GetCrc32(r.FullName).GetValueOrDefault(), r.FullName);
+                                select new PacketFileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0, r.FullName);
 
                         result.AddRange(query.Distinct());
                     }

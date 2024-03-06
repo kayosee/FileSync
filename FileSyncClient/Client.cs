@@ -162,6 +162,7 @@ namespace FileSyncClient
             {
                 if (localFileInfo.Length == fileInformation.FileLength && localFileInfo.LastWriteTime.Ticks == fileInformation.LastWriteTime)//请求CHECKSUM，看看是不是一样
                 {
+                    /*
                     var checksum = FileOperator.GetCrc32(localFileInfo.FullName);
                     if (checksum != fileInformation.Checksum)
                     {
@@ -171,7 +172,7 @@ namespace FileSyncClient
                     else
                     {
                         //Log.Information($"{fileInformation.Path}文件一致，无须更新");
-                    }
+                    }*/
                 }
                 else
                 {
