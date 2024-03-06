@@ -7,10 +7,9 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
-public class PacketFileListDetailResponse : Packet
+public class PacketFileListDetailResponse : PacketResponse
 {
     private long _total;
-    private long _inquireId;
     private long _createTime;
     private long _lastAccessTime;
     private long _lastWriteTime;
@@ -18,9 +17,8 @@ public class PacketFileListDetailResponse : Packet
     private uint _checksum;
     private string _path;
     private int _pathLength;
-    public PacketFileListDetailResponse(int clientId, long inquireId, long createTime, long lastAccessTime, long lastWriteTime, long fileLength, uint checksum, string path) : base(PacketType.FileListDetailResponse, clientId)
+    public PacketFileListDetailResponse(int clientId,long requestId, long createTime, long lastAccessTime, long lastWriteTime, long fileLength, uint checksum, string path) : base(PacketType.FileListDetailResponse, clientId,requestId)
     {
-        _inquireId = inquireId;
         _createTime = createTime;
         _lastAccessTime = lastAccessTime;
         _lastWriteTime = lastWriteTime;
@@ -56,14 +54,9 @@ public class PacketFileListDetailResponse : Packet
     /// </summary>
     public string Path { get => _path; set => _path = value; }
     /// <summary>
-    /// 查询的ID
-    /// </summary>
-    public long InquireId { get => _inquireId; set => _inquireId = value; }
-    /// <summary>
     /// 总共多少个INFORMATION
     /// </summary>
     public long Total { get => _total; set => _total = value; }
-
     protected override void Deserialize(byte[] bytes)
     {
         if (bytes == null)
@@ -72,7 +65,7 @@ public class PacketFileListDetailResponse : Packet
         using (var stream = new ByteArrayStream(bytes))
         {
             _total = stream.ReadInt64();
-            _inquireId = stream.ReadInt64();
+            _requestId = stream.ReadInt64();
             _createTime = stream.ReadInt64();
             _lastAccessTime = stream.ReadInt64();
             _lastWriteTime = stream.ReadInt64();
@@ -94,7 +87,7 @@ public class PacketFileListDetailResponse : Packet
         using (var stream = new ByteArrayStream())
         {
             stream.Write(_total);
-            stream.Write(_inquireId);
+            stream.Write(_requestId);
             stream.Write(_createTime);
             stream.Write(_lastAccessTime);
             stream.Write(_lastWriteTime);

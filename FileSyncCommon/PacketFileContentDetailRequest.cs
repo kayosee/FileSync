@@ -7,18 +7,14 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
-public class PacketFileContentDetailRequest : Packet
+public class PacketFileContentDetailRequest : PacketRequest
 {
-    private long _inquireId;
-    private long _requestId;
     private long _startPos;
     private long _endPos;
     private int _pathLength;
     private string _path;
-    public PacketFileContentDetailRequest(int clientId, long inquireId, long requestId, long startPos, string path) : base(PacketType.FileContentDetailRequest, clientId)
+    public PacketFileContentDetailRequest(int clientId, long requestId, long startPos, string path) : base(PacketType.FileContentDetailRequest, clientId,requestId)
     {
-        _inquireId = inquireId;
-        _requestId = requestId;
         _startPos = startPos;
         _path = path;
     }
@@ -38,11 +34,6 @@ public class PacketFileContentDetailRequest : Packet
         }
     }
     public long EndPos { get => _endPos; set => _endPos = value; }
-    /// <summary>
-    /// 请求ID
-    /// </summary>
-    public long InquireId { get => _inquireId; set => _inquireId = value; }
-    public long RequestId { get => _requestId; set => _requestId = value; }
 
     protected override void Deserialize(byte[] bytes)
     {
@@ -51,7 +42,6 @@ public class PacketFileContentDetailRequest : Packet
 
         using (var stream = new ByteArrayStream(bytes))
         {
-            _inquireId = stream.ReadInt64();
             _requestId = stream.ReadInt64();
             _startPos = stream.ReadInt64();
             _endPos = stream.ReadInt64();
@@ -66,7 +56,6 @@ public class PacketFileContentDetailRequest : Packet
     {
         using (var stream = new ByteArrayStream())
         {
-            stream.Write(_inquireId);
             stream.Write(_requestId);
             stream.Write(_startPos);
             stream.Write(_endPos);

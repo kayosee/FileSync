@@ -8,8 +8,8 @@ namespace FileSyncCommon;
 
 public enum FileResponseType
 {
-    Empty = 0,
-    Content = 1,
-    FileDeleted = 2,
-    FileReadError = 3
+    Empty ,
+    Content ,
+    FileDeleted ,
+    FileReadError 
 }

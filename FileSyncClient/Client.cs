@@ -24,8 +24,7 @@ namespace FileSyncClient
         private byte _encryptKey;
 
         private Timer _timer;
-        private ConcurrentDictionary<long, long> _inquire = new ConcurrentDictionary<long, long>();
-        private ConcurrentDictionary<long, long> _request = new ConcurrentDictionary<long, long>();
+        private RequestCounter<long> _request = new RequestCounter<long>();
         public Client(string ip, int port, string folder, bool encrypt, byte encryptKey) : base(0, new Socket(SocketType.Stream, ProtocolType.Tcp), encrypt, encryptKey)
         {
             _folder = folder;
@@ -63,15 +62,15 @@ namespace FileSyncClient
         }
         private void DoFileContentInfoResponse(PacketFileContentInfoResponse packet)
         {
-            if(!_request.TryAdd(packet.RequestId, packet.TotalCount))
-                _request[packet.RequestId] = packet.TotalCount;
+            var response = new PacketFileContentDetailRequest(_clientId, DateTime.Now.Ticks, packet.LastPos, packet.Path);
+            _request.Increase(response.RequestId, packet.TotalCount);
+            _request.Reduce(packet.RequestId);
 
-            SendPacket(new PacketFileContentDetailRequest(_clientId, packet.InquireId, packet.RequestId, packet.LastPos, packet.Path));
+            SendPacket(response);
         }
         private void DoFileListInfoResponse(PacketFileListInfoResponse packet)
         {
-            if(!_inquire.TryAdd(packet.InquireId, packet.FileCount))
-                _inquire[packet.InquireId] = packet.FileCount;
+            _request.Increase(packet.RequestId, packet.FileCount);
         }
         private void DoFileContentDetailResponse(PacketFileContentDetailResponse fileResponse)
         {
@@ -83,14 +82,14 @@ namespace FileSyncClient
                         File.Create(path).Close();
                         FileInfo fi = new FileInfo(path);
                         fi.LastWriteTime = DateTime.FromBinary(fileResponse.LastWriteTime);
-                        _request.TryRemove(fileResponse.RequestId,out var _);
+                        _request.Remove(fileResponse.RequestId);
                         break;
                     }
                 case FileResponseType.FileDeleted:
                     {
                         if (System.IO.Path.Exists(path))
                             File.Delete(path);
-                        _request.TryRemove(fileResponse.RequestId,out var _);
+                        _request.Remove(fileResponse.RequestId);
                         break;
                     }
                 case FileResponseType.Content:
@@ -102,29 +101,27 @@ namespace FileSyncClient
                             {
                                 FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, null);
                                 FileOperator.SetupFile(path, fileResponse.LastWriteTime);
+                                _request.Remove(fileResponse.RequestId);
                             }
                             else //写入位置信息
                             {
-                                var filePosition = new FilePosition(fileResponse.Pos);
-                                FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, filePosition);
-                                SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.InquireId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
+                                FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, fileResponse.Pos + fileResponse.FileDataLength);
+                                SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
+                                _request.Reduce(fileResponse.RequestId);
                             }
-
-                            if (_request.GetOrAdd(fileResponse.RequestId, 0) == 0 || --_request[fileResponse.RequestId] <= 0)
-                                _request.TryRemove(fileResponse.RequestId, out var _);
                         }
                         catch (Exception e)
                         {
                             Log.Error(e.Message);
                             Log.Error(e.StackTrace);
-                            SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.InquireId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path));
+                            SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path));
                         }
                         break;
                     }
                 case FileResponseType.FileReadError:
                     {
                         Log.Error($"远程文件读取失败:{fileResponse.Path}");
-                        _request.TryRemove(fileResponse.RequestId, out var _);
+                        _request.Remove(fileResponse.RequestId);
                         break;
                     }
                 default:
@@ -133,11 +130,8 @@ namespace FileSyncClient
         }
         private void DoFileListDetailResponse(PacketFileListDetailResponse fileInformation)
         {
-            if (_inquire.GetOrAdd(fileInformation.InquireId, 0) == 0 || --_inquire[fileInformation.InquireId] <= 0)
-                _inquire.TryRemove(fileInformation.InquireId, out var _);
-
             var file = System.IO.Path.Combine(_folder, fileInformation.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
-            var request = new PacketFileContentInfoRequest(_clientId, fileInformation.InquireId, DateTime.Now.Ticks, 0, 0, fileInformation.Path);
+            var request = new PacketFileContentInfoRequest(_clientId, DateTime.Now.Ticks, 0, 0, fileInformation.Path);
 
             var localFileInfo = new System.IO.FileInfo(file);
             if (!localFileInfo.Exists)
@@ -147,18 +141,21 @@ namespace FileSyncClient
                     try
                     {
                         var pos = FileOperator.GetLastPosition(file + ".sync");
-                        request.Checksum = FileOperator.GetCrc32(file + ".sync", pos).GetValueOrDefault();
+                        request.Checksum = FileOperator.GetCrc32(file + ".sync",pos).GetValueOrDefault();
                         request.LastPos = pos;
                         SendPacket(request);
+                        _request.Increase(request.RequestId);
                     }
                     catch (Exception ex)
                     {
                         SendPacket(request);
+                        _request.Increase(request.RequestId);
                     }
                 }
                 else
                 {
                     SendPacket(request);
+                    _request.Increase(request.RequestId);
                 }
             }
             else
@@ -169,6 +166,7 @@ namespace FileSyncClient
                     if (checksum != fileInformation.Checksum)
                     {
                         SendPacket(request);
+                        _request.Increase(request.RequestId);
                     }
                     else
                     {
@@ -178,8 +176,10 @@ namespace FileSyncClient
                 else
                 {
                     SendPacket(request);
+                    _request.Increase(request.RequestId);
                 }
             }
+            _request.Reduce(fileInformation.RequestId);
         }
         private void DoHandshake(PacketHandshake handshake)
         {
@@ -188,10 +188,10 @@ namespace FileSyncClient
             {
                 _timer = new Timer((e) =>
                 {
-                    if (_inquire.Count == 0 && _request.Count == 0)
+                    if (_request.IsEmpty)
                     {
                         var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _folder);
-                        _inquire.TryAdd(packet.InquireId, 0);
+                        _request.Increase(packet.RequestId, 0);
                         SendPacket(packet);
                     }
                 });

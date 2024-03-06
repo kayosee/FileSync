@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -21,6 +22,7 @@ public abstract class SocketSession
     private string _ip;
     private int _port;
     private int _id;
+    private Dictionary<int, ConstructorInfo> _constructors;
     protected ulong _read;
     protected ulong _written;
     public bool IsConnected { get { return _socket.Connected; } }
@@ -33,7 +35,7 @@ public abstract class SocketSession
         _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
         _encrypt = encrypt;
         _encryptKey = encryptKey;
-
+        _constructors = new Dictionary<int, ConstructorInfo>();
         _thread = new Thread((s) =>
         {
             while (true)
@@ -59,8 +61,8 @@ public abstract class SocketSession
             {
                 total += _socket.Receive(buffer, total, length - total, SocketFlags.None);
                 _read += (ulong)total;
-                Log.Information($"read:{_read},written:{_written}");
             }
+            Log.Information($"read:{_read},written:{_written}");
 
             if (_encrypt)
                 return buffer.Apply(f => f ^= _encryptKey);
@@ -81,11 +83,10 @@ public abstract class SocketSession
             if (_encrypt)
                 buffer = buffer.Apply(f => f ^= _encryptKey);
 
-            int n = _socket.Send(buffer);
-            Debug.Assert(n == buffer.Length);
-            _written += (ulong)n;
+            int sent = _socket.Send(buffer);
+            _written += (ulong)sent;
             Log.Information($"read:{_read},written:{_written}");
-            return n;
+            return sent;
         }
         catch (SocketException e)
         {
@@ -125,45 +126,15 @@ public abstract class SocketSession
             return null;
         }
 
-        Packet result = null;
-        switch ((PacketType)dataType)
-        {
-            case PacketType.Handshake:
-                result = new PacketHandshake(whole.ToArray());
-                break;
-            case PacketType.FileListRequest:
-                result = new PacketFileListRequest(whole.ToArray());
-                break;
-            case PacketType.FileListInfoResponse:
-                result = new PacketFileListInfoResponse(whole.ToArray());
-                break;
-            case PacketType.FileListDetailResponse:
-                result = new PacketFileListDetailResponse(whole.ToArray());
-                break;
-            case PacketType.FileContentInfoRequest:
-                result = new PacketFileContentInfoRequest(whole.ToArray());
-                break;
-            case PacketType.FileContentInfoResponse:
-                result = new PacketFileContentInfoResponse(whole.ToArray());
-                break;
-            case PacketType.FileContentDetailRequest:
-                result = new PacketFileContentDetailRequest(whole.ToArray());
-                break;
-            case PacketType.FileContentDetailResponse:
-                result = new PacketFileContentDetailResponse(whole.ToArray());
-                break;
-            default:
-                break;
-        }
-
+        var result = ConvertPacket(dataType, whole.ToArray());
         if (result != null)
         {
-            //Log.Information($"收到{result}");
+            return (Packet)result;
         }
-        return result;
+        return null;
     }
     public void SendPacket(Packet packet)
-    {   
+    {
         Write(packet.GetBytes());
     }
     public bool Connect(string ip, int port)
@@ -202,4 +173,28 @@ public abstract class SocketSession
     }
 
     protected virtual void OnConnected() { }
+
+    private object? ConvertPacket(int dataType, byte[] data)
+    {
+        ConstructorInfo constructor = null;
+        if (_constructors.ContainsKey(dataType))
+        {
+            constructor = _constructors[dataType];
+        }
+        else
+        {
+            var name = "Packet" + Enum.GetName(typeof(PacketType), (int)dataType);
+            var type = typeof(Packet).Assembly.GetTypes().First(f => f.Name == name);
+            constructor = type.GetConstructors().First(f => f.GetParameters().Length == 1 && f.GetParameters().Any(s => s.Name == "bytes"));
+            if (constructor != null)
+            {
+                _constructors.Add(dataType, constructor);
+            }
+        }
+
+        if (constructor != null)
+            return constructor.Invoke(new object[] { data });
+
+        return null;
+    }
 }

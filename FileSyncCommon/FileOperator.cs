@@ -18,7 +18,7 @@ namespace FileSyncCommon;
 
 public class FileOperator
 {
-    private const int BufferSize = 1024 * 1024;
+    private const int BufferSize = 1024 * 1024 * 1024;
     public static uint? GetCrc32(string path)
     {
         if (!File.Exists(path))
@@ -55,9 +55,8 @@ public class FileOperator
                 var total = 0;
                 var buffer = new byte[BufferSize];
                 int nret = 0;
-                while (total < endPos && nret > 0)
+                while ((nret = stream.Read(buffer)) > 0 && total < endPos)
                 {
-                    nret = stream.Read(buffer);
                     if (total + nret > endPos)
                     {
                         nret = (int)endPos - total;
@@ -86,7 +85,7 @@ public class FileOperator
         }
     }
 
-    public static void WriteFile(string path, long position, byte[] bytes,FilePosition? filePosition)
+    public static void WriteFile(string path, long position, byte[] bytes, long? filePosition)
     {
         if (!Path.Exists(path))
         {
@@ -101,7 +100,7 @@ public class FileOperator
         temp.AddRange(bytes);
 
         if (filePosition != null)
-            temp.AddRange(filePosition.GetBytes());
+            temp.AddRange(new FilePosition(filePosition.Value).GetBytes());
 
         using (var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, 0, FileOptions.WriteThrough))
         {

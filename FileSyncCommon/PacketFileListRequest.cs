@@ -7,18 +7,16 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
-public class PacketFileListRequest : Packet
+public class PacketFileListRequest : PacketRequest
 {
-    private long _inquireId;
     private string _path;
     private int _pathLength;
 
     public string Path { get => _path; set => _path = value; }
-    public long InquireId { get => _inquireId; set => _inquireId = value; }
+    public override long RequestId { get => _requestId; set => _requestId = value; }
 
-    public PacketFileListRequest(int clientId,long inquireId, string path) : base(PacketType.FileListRequest, clientId)
+    public PacketFileListRequest(int clientId, long requestId, string path) : base(PacketType.FileListRequest, clientId, requestId)
     {
-        _inquireId = inquireId;
         _path = path;
     }
     public PacketFileListRequest(byte[] bytes) : base(bytes)
@@ -31,7 +29,7 @@ public class PacketFileListRequest : Packet
 
         using (var stream = new ByteArrayStream(bytes))
         {
-            _inquireId = stream.ReadInt64();
+            _requestId = stream.ReadInt64();
             _pathLength = stream.ReadInt32();
             var buffer = new byte[_pathLength];
 
@@ -46,7 +44,7 @@ public class PacketFileListRequest : Packet
 
         using (var stream = new ByteArrayStream())
         {
-            stream.Write(_inquireId);
+            stream.Write(_requestId);
 
             byte[] buffer = Encoding.UTF8.GetBytes(_path);
             _pathLength = buffer.Length;

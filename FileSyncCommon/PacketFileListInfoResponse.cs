@@ -6,18 +6,16 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon
 {
-    public class PacketFileListInfoResponse : Packet
+    public class PacketFileListInfoResponse : PacketResponse
     {
-        private long _inquireId;
         private long _fileCount;
         private long _totalSize;
         public PacketFileListInfoResponse(byte[] bytes) : base(bytes)
         {
         }
 
-        public PacketFileListInfoResponse(int clientId,long inquireId,long fileCount,long totalSize) : base(PacketType.FileListInfoResponse, clientId)
+        public PacketFileListInfoResponse(int clientId,long requestId,long fileCount,long totalSize) : base(PacketType.FileListInfoResponse, clientId, requestId)
         {
-            _inquireId = inquireId;
             _fileCount = fileCount;
             _totalSize = totalSize;
         }
@@ -29,16 +27,11 @@ namespace FileSyncCommon
         /// 合计文件容量
         /// </summary>
         public long TotalSize { get => _totalSize; set => _totalSize = value; }
-        /// <summary>
-        /// 请求ID
-        /// </summary>
-        public long InquireId { get => _inquireId; set => _inquireId = value; }
-
         protected override void Deserialize(byte[] bytes)
         {
             using (var stream = new ByteArrayStream(bytes))
             {
-                _inquireId = stream.ReadInt64();
+                _requestId = stream.ReadInt64();
                 _fileCount = stream.ReadInt64();
                 _totalSize = stream.ReadInt64();
             }
@@ -48,7 +41,7 @@ namespace FileSyncCommon
         {
             using (var stream = new ByteArrayStream())
             {
-                stream.Write(_inquireId);
+                stream.Write(_requestId);
                 stream.Write(_fileCount);
                 stream.Write(_totalSize);
                 return stream.GetBuffer();

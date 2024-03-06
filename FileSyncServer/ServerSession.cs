@@ -62,7 +62,7 @@ namespace FileSyncServer
                     lastPos = 0;
                 }
             }
-            var response = new PacketFileContentInfoResponse(packet.ClientId, packet.InquireId, packet.RequestId, lastPos, checksum, totalCount, totalSize, packet.Path);
+            var response = new PacketFileContentInfoResponse(packet.ClientId, packet.RequestId, lastPos, checksum, totalCount, totalSize, packet.Path);
             SendPacket(response);
         }
 
@@ -70,7 +70,7 @@ namespace FileSyncServer
         {
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             if (!File.Exists(localPath))
-                SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.InquireId, packet.RequestId, FileResponseType.FileDeleted, packet.Path));
+                SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileDeleted, packet.Path));
             else
             {
                 using (var stream = File.OpenRead(localPath))
@@ -78,12 +78,12 @@ namespace FileSyncServer
                     if (packet.StartPos > stream.Length)
                     {
                         Log.Error($"请求的位置{packet.StartPos}超出该文件'{localPath}'的大小{stream.Length}");
-                        SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.InquireId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
+                        SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
                     }
                     if (stream.Length == 0)
                     {
                         var lastWriteTime = new FileInfo(localPath).LastWriteTime.Ticks;
-                        var response = new PacketFileContentDetailResponse(packet.ClientId, packet.InquireId, packet.RequestId, FileResponseType.Empty, packet.Path);
+                        var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Empty, packet.Path);
                         response.LastWriteTime = lastWriteTime;
                         SendPacket(response);
                     }
@@ -93,7 +93,7 @@ namespace FileSyncServer
 
                         var lastWriteTime = new FileInfo(localPath).LastWriteTime.Ticks;
                         var buffer = new byte[PacketFileContentDetailResponse.MaxDataSize];
-                        var response = new PacketFileContentDetailResponse(packet.ClientId, packet.InquireId, packet.RequestId, FileResponseType.Content, packet.Path);
+                        var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Content, packet.Path);
                         response.Pos = stream.Position;
                         response.FileDataLength = stream.Read(buffer);
                         response.FileData = buffer.Take(response.FileDataLength).ToArray();
@@ -109,11 +109,11 @@ namespace FileSyncServer
         {
             var path = _folder;
             var output = new List<PacketFileListDetailResponse>();
-            GetFiles(packet.ClientId, packet.InquireId, new DirectoryInfo(path), DateTime.Now.AddDays(0-_daysBefore), ref output);
+            GetFiles(packet.ClientId, packet.RequestId, new DirectoryInfo(path), DateTime.Now.AddDays(0 - _daysBefore), ref output);
 
-            var fileListInfoResponse = new PacketFileListInfoResponse(packet.ClientId, packet.InquireId, output.LongCount(), output.Sum(f => f.FileLength));
+            var fileListInfoResponse = new PacketFileListInfoResponse(packet.ClientId, packet.RequestId, output.LongCount(), output.Sum(f => f.FileLength));
             SendPacket(fileListInfoResponse);
-            
+
             foreach (var file in output)
             {
                 file.Path = file.Path.Replace(_folder, "");
@@ -130,7 +130,7 @@ namespace FileSyncServer
             }
         }
 
-        private void GetFiles(int clientId, long inquireId, DirectoryInfo directory, DateTime createBefore, ref List<PacketFileListDetailResponse> result)
+        private void GetFiles(int clientId, long requestId, DirectoryInfo directory, DateTime createBefore, ref List<PacketFileListDetailResponse> result)
         {
             try
             {
@@ -138,18 +138,18 @@ namespace FileSyncServer
                 {
                     var query = from r in directory.GetFiles("*.*")
                                 where r.Extension != ".sync" && r.CreationTime >= createBefore
-                                select new PacketFileListDetailResponse(clientId, inquireId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, FileOperator.GetCrc32(r.FullName).GetValueOrDefault(), r.FullName);
+                                select new PacketFileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, FileOperator.GetCrc32(r.FullName).GetValueOrDefault(), r.FullName);
 
                     result.AddRange(query.Distinct());
 
                     var subDirs = directory.GetDirectories();
                     foreach (var subDir in subDirs)
                     {
-                        GetFiles(clientId, inquireId, subDir, createBefore, ref result);
+                        GetFiles(clientId, requestId, subDir, createBefore, ref result);
 
                         query = from r in subDir.GetFiles("*.*")
                                 where r.Extension != ".sync"
-                                select new PacketFileListDetailResponse(clientId, inquireId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, FileOperator.GetCrc32(r.FullName).GetValueOrDefault(), r.FullName);
+                                select new PacketFileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, FileOperator.GetCrc32(r.FullName).GetValueOrDefault(), r.FullName);
 
                         result.AddRange(query.Distinct());
                     }

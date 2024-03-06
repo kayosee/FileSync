@@ -8,10 +8,8 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
-public class PacketFileContentDetailResponse : Packet
+public class PacketFileContentDetailResponse : PacketResponse
 {
-    private long _inquireId;
-    private long _requestId;
     private byte _responseType;
     private int _pathLength;
     private string _path;
@@ -30,10 +28,8 @@ public class PacketFileContentDetailResponse : Packet
 
         return other.Path == Path && other.Pos == Pos;
     }
-    public PacketFileContentDetailResponse(int clientId,long inquireId,long requestId, FileResponseType responseType, string path) : base(PacketType.FileContentDetailResponse, clientId)
+    public PacketFileContentDetailResponse(int clientId,long requestId, FileResponseType responseType, string path) : base(PacketType.FileContentDetailResponse, clientId, requestId)
     {
-        _inquireId = inquireId;
-        _requestId = requestId;
         _responseType = (byte)responseType;
         _path = path;
     }
@@ -48,6 +44,13 @@ public class PacketFileContentDetailResponse : Packet
         get
         {
             return _pos + _fileDataLength >= _fileDataTotal;
+        }
+    }
+    public long UntransmitCount
+    {
+        get
+        {
+            return (_fileDataTotal - _pos + _fileDataLength) / MaxDataSize;
         }
     }
     /// <summary>
@@ -88,17 +91,10 @@ public class PacketFileContentDetailResponse : Packet
     /// 上次修改时间
     /// </summary>
     public long LastWriteTime { get => _lastWriteTime; set => _lastWriteTime = value; }
-    /// <summary>
-    /// 请求ID
-    /// </summary>
-    public long InquireId { get => _inquireId; set => _inquireId = value; }
-    public long RequestId { get => _requestId; set => _requestId = value; }
-
     protected override byte[] Serialize()
     {
         using (var stream = new ByteArrayStream())
         {
-            stream.Write(_inquireId);
             stream.Write(_requestId);
             stream.Write(_responseType);
 
@@ -129,7 +125,6 @@ public class PacketFileContentDetailResponse : Packet
 
         using (var stream = new ByteArrayStream(bytes))
         {
-            _inquireId = stream.ReadInt64();
             _requestId = stream.ReadInt64();
             _responseType = stream.ReadByte();
             _pathLength = stream.ReadInt32();

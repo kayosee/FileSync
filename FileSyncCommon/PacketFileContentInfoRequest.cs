@@ -6,10 +6,8 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon
 {
-    public class PacketFileContentInfoRequest : Packet
+    public class PacketFileContentInfoRequest : PacketRequest
     {
-        private long _inquireId;
-        private long _requestId;
         private long _lastPos;
         private uint _checksum;
         private string _path;
@@ -18,17 +16,12 @@ namespace FileSyncCommon
         {
         }
 
-        public PacketFileContentInfoRequest(int clientId, long inquireId, long requestId, long startPos,uint checksum, string path) : base(PacketType.FileContentInfoRequest, clientId)
+        public PacketFileContentInfoRequest(int clientId, long requestId, long startPos,uint checksum, string path) : base(PacketType.FileContentInfoRequest, clientId, requestId)
         {
-            _inquireId = inquireId;
-            _requestId = requestId;
             _lastPos = startPos;
             _checksum = checksum;
             _path = path;
         }
-
-        public long InquireId { get => _inquireId; set => _inquireId = value; }
-        public long RequestId { get => _requestId; set => _requestId = value; }
         public string Path { get => _path; set => _path = value; }
         /// <summary>
         /// 最后一次传输的位置
@@ -46,7 +39,6 @@ namespace FileSyncCommon
 
             using (var stream = new ByteArrayStream(bytes))
             {
-                _inquireId = stream.ReadInt64();
                 _requestId = stream.ReadInt64();
                 _lastPos = stream.ReadInt64();
                 _checksum = stream.ReadUInt32();
@@ -63,7 +55,6 @@ namespace FileSyncCommon
         {
             using (var stream = new ByteArrayStream())
             {
-                stream.Write(_inquireId);
                 stream.Write(_requestId);
                 stream.Write(_lastPos);
                 stream.Write(_checksum);
