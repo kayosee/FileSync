@@ -14,7 +14,7 @@ namespace FileSyncCommon
         {
             _counter.AddOrUpdate(key, value, (key, oldValue) => oldValue + value);
         }
-        public void Reduce(TKey key, long value = 1)
+        public void Decrease(TKey key, long value = 1)
         {
             if (_counter.ContainsKey(key))
             {

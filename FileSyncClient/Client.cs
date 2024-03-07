@@ -64,7 +64,7 @@ namespace FileSyncClient
         {
             var response = new PacketFileContentDetailRequest(_clientId, DateTime.Now.Ticks, packet.LastPos, packet.Path);
             _request.Increase(response.RequestId, packet.TotalCount);
-            _request.Reduce(packet.RequestId);
+            _request.Decrease(packet.RequestId);
 
             SendPacket(response);
         }
@@ -94,7 +94,6 @@ namespace FileSyncClient
                     }
                 case FileResponseType.Content:
                     {
-                        //Log.Information($"收到文件'{path}',位置:{fileResponse.Pos},长度:{fileResponse.FileData.Length},总长:{fileResponse.FileDataTotal}");
                         try
                         {
                             if (fileResponse.EndOfFile) //文件已经传输完成
@@ -102,12 +101,13 @@ namespace FileSyncClient
                                 FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, null);
                                 FileOperator.SetupFile(path, fileResponse.LastWriteTime);
                                 _request.Remove(fileResponse.RequestId);
+                                Log.Information($"{path}已经传输完成。");
                             }
                             else //写入位置信息
                             {
                                 FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, fileResponse.Pos + fileResponse.FileDataLength);
                                 SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
-                                _request.Reduce(fileResponse.RequestId);
+                                _request.Decrease(fileResponse.RequestId);
                             }
                         }
                         catch (Exception e)
@@ -145,23 +145,28 @@ namespace FileSyncClient
                         request.LastPos = pos;
                         SendPacket(request);
                         _request.Increase(request.RequestId);
+                        Log.Information($"正在检验续传文件:{fileInformation.Path}");
                     }
                     catch (Exception ex)
                     {
                         SendPacket(request);
                         _request.Increase(request.RequestId);
+                        Log.Information($"文件校验失败:{fileInformation.Path}，重新下载。");
                     }
                 }
                 else
                 {
                     SendPacket(request);
                     _request.Increase(request.RequestId);
+                    Log.Information($"文件不存在:{fileInformation.Path}，发起下载。");
                 }
             }
             else
             {
                 if (localFileInfo.Length == fileInformation.FileLength && localFileInfo.LastWriteTime.Ticks == fileInformation.LastWriteTime)//请求CHECKSUM，看看是不是一样
                 {
+                    Log.Information($"{fileInformation.Path}文件一致，无须更新");
+
                     /*
                     var checksum = FileOperator.GetCrc32(localFileInfo.FullName);
                     if (checksum != fileInformation.Checksum)
@@ -171,16 +176,18 @@ namespace FileSyncClient
                     }
                     else
                     {
-                        //Log.Information($"{fileInformation.Path}文件一致，无须更新");
-                    }*/
+                        Log.Information($"{fileInformation.Path}文件一致，无须更新");
+                    }
+                    */
                 }
                 else
                 {
                     SendPacket(request);
                     _request.Increase(request.RequestId);
+                    Log.Information($"{fileInformation.Path}文件不一致，需要更新");
                 }
             }
-            _request.Reduce(fileInformation.RequestId);
+            _request.Decrease(fileInformation.RequestId);
         }
         private void DoHandshake(PacketHandshake handshake)
         {

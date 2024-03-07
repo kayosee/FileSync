@@ -12,7 +12,7 @@ namespace FileSyncClient
             var folder = ConfigurationManager.AppSettings["folder"];
             var encrypt = bool.Parse(ConfigurationManager.AppSettings["encrypt"]);
             var encryptKey = byte.Parse(ConfigurationManager.AppSettings["encryptKey"]);
-            Log.Logger = new LoggerConfiguration().WriteTo.Console()./*WriteTo.File("run.log", rollingInterval: RollingInterval.Day).*/CreateLogger();
+            Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("run.log", rollingInterval: RollingInterval.Day).CreateLogger();
 
             try
             {

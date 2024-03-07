@@ -23,8 +23,6 @@ public abstract class SocketSession
     private int _port;
     private int _id;
     private Dictionary<int, ConstructorInfo> _constructors;
-    protected ulong _read;
-    protected ulong _written;
     public bool IsConnected { get { return _socket.Connected; } }
     protected abstract void OnReceivePackage(Packet packet);
     protected abstract void OnSocketError(int id, Socket socket, Exception e);
@@ -60,9 +58,7 @@ public abstract class SocketSession
             while (total < length)
             {
                 total += _socket.Receive(buffer, total, length - total, SocketFlags.None);
-                _read += (ulong)total;
             }
-            Log.Information($"read:{_read},written:{_written}");
 
             if (_encrypt)
                 return buffer.Apply(f => f ^= _encryptKey);
@@ -84,8 +80,6 @@ public abstract class SocketSession
                 buffer = buffer.Apply(f => f ^= _encryptKey);
 
             int sent = _socket.Send(buffer);
-            _written += (ulong)sent;
-            Log.Information($"read:{_read},written:{_written}");
             return sent;
         }
         catch (SocketException e)

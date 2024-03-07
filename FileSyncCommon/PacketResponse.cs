@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon
 {
-    public abstract class PacketResponse:Packet
+    public abstract class PacketResponse : Packet
     {
         protected long _requestId;
         protected PacketResponse(byte[] bytes) : base(bytes)

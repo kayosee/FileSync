@@ -99,7 +99,6 @@ namespace FileSyncServer
                         response.FileData = buffer.Take(response.FileDataLength).ToArray();
                         response.FileDataTotal = stream.Length;
                         response.LastWriteTime = lastWriteTime;
-                        Log.Debug($"正在发送：{response.Path},位置:{response.Pos},长度:{response.FileData.Length},总共:{response.FileDataTotal}");
                         SendPacket(response);
                     }
                 }
@@ -107,8 +106,10 @@ namespace FileSyncServer
         }
         private void DoFileListRequest(PacketFileListRequest packet)
         {
+            Log.Information("读取文件列表");
+
             var path = _folder;
-            var output = new List<PacketFileListDetailResponse>();
+            var output = new List<PacketFileListDetailResponse>();            
             GetFiles(packet.ClientId, packet.RequestId, new DirectoryInfo(path), DateTime.Now.AddDays(0 - _daysBefore), ref output);
 
             var fileListInfoResponse = new PacketFileListInfoResponse(packet.ClientId, packet.RequestId, output.LongCount(), output.Sum(f => f.FileLength));
