@@ -9,7 +9,6 @@ namespace FileSyncCommon;
 
 public class PacketFileListDetailResponse : PacketResponse
 {
-    private long _total;
     private long _createTime;
     private long _lastAccessTime;
     private long _lastWriteTime;
@@ -53,10 +52,6 @@ public class PacketFileListDetailResponse : PacketResponse
     /// 文件路径
     /// </summary>
     public string Path { get => _path; set => _path = value; }
-    /// <summary>
-    /// 总共多少个INFORMATION
-    /// </summary>
-    public long Total { get => _total; set => _total = value; }
     protected override void Deserialize(byte[] bytes)
     {
         if (bytes == null)
@@ -64,7 +59,6 @@ public class PacketFileListDetailResponse : PacketResponse
 
         using (var stream = new ByteArrayStream(bytes))
         {
-            _total = stream.ReadInt64();
             _requestId = stream.ReadInt64();
             _createTime = stream.ReadInt64();
             _lastAccessTime = stream.ReadInt64();
@@ -86,7 +80,6 @@ public class PacketFileListDetailResponse : PacketResponse
 
         using (var stream = new ByteArrayStream())
         {
-            stream.Write(_total);
             stream.Write(_requestId);
             stream.Write(_createTime);
             stream.Write(_lastAccessTime);

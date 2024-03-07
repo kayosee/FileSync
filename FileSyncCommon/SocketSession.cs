@@ -17,6 +17,7 @@ public abstract class SocketSession
 {
     private Thread _reader { get; set; }
     private Thread _writer { get; set; }
+    private bool _connected;
     private byte _encryptKey;
     private Socket _socket;
     private bool _encrypt;
@@ -24,7 +25,8 @@ public abstract class SocketSession
     private int _port;
     private int _id;
     private Dictionary<int, ConstructorInfo> _constructors;
-    private Semaphore _semaphore;
+    private Semaphore _pushSemaphore;
+    private Semaphore _pullSemaphore;
     private ConcurrentQueue<Packet> _packetQueue;
     public bool IsConnected { get { return _socket.Connected; } }
     protected abstract void OnReceivePackage(Packet packet);
@@ -38,18 +40,21 @@ public abstract class SocketSession
         _encryptKey = encryptKey;
         _constructors = new Dictionary<int, ConstructorInfo>();
         _packetQueue= new ConcurrentQueue<Packet>();
-        _semaphore = new Semaphore(32,32);
+        _pushSemaphore = new Semaphore(32,32);
+        _pullSemaphore = new Semaphore(0, 32);
+        _connected = socket.Connected;
         _reader = new Thread((s) =>
         {
             while (true)
             {
-                if (!_socket.Connected)
+                if (!_connected)
                     continue;
 
                 var packet = ReadPacket();
-                if (packet != null && _semaphore.WaitOne())
+                if (packet != null && _pushSemaphore.WaitOne())
                 {
                     _packetQueue.Enqueue(packet);
+                    _pullSemaphore.Release();
                 }
             }
         });
@@ -60,12 +65,12 @@ public abstract class SocketSession
         {
             while (true)
             {
-                if (!_socket.Connected)
+                if (!_connected)
                     continue;
-                if (_packetQueue.TryDequeue(out var packet))
+                if (_pullSemaphore.WaitOne() && _packetQueue.TryDequeue(out var packet))
                 {
                     OnReceivePackage(packet);
-                    _semaphore.Release();
+                    _pushSemaphore.Release();
                 }
             }
         });
@@ -88,6 +93,7 @@ public abstract class SocketSession
         }
         catch (SocketException e)
         {
+            _connected = false;
             OnSocketError(_id, _socket, e);
         }
         return buffer;
@@ -107,6 +113,7 @@ public abstract class SocketSession
         }
         catch (SocketException e)
         {
+            _connected = false;
             OnSocketError(_id, _socket, e);
             return 0;
         }
@@ -161,6 +168,7 @@ public abstract class SocketSession
             _ip = ip;
             _port = port;
             _socket.Connect(IPAddress.Parse(ip), port);
+            _connected = true;
             OnConnected();
             return true;
         }
@@ -178,6 +186,7 @@ public abstract class SocketSession
         {
             _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             _socket.Connect(_ip, _port);
+            _connected = true;
             OnConnected();
             return true;
         }

@@ -73,7 +73,8 @@ namespace FileSyncServer
             Log.Information($"收到读取文件内容请求:{packet.Path}");
 
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
-            if (!File.Exists(localPath))
+            var fileInfo = new FileInfo(localPath);
+            if (!fileInfo.Exists)
                 SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileDeleted, packet.Path));
             else
             {
@@ -86,7 +87,7 @@ namespace FileSyncServer
                     }
                     if (stream.Length == 0)
                     {
-                        var lastWriteTime = new FileInfo(localPath).LastWriteTime.Ticks;
+                        var lastWriteTime = fileInfo.LastWriteTime.Ticks;
                         var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Empty, packet.Path);
                         response.LastWriteTime = lastWriteTime;
                         SendPacket(response);
@@ -95,7 +96,7 @@ namespace FileSyncServer
                     {
                         stream.Seek(packet.StartPos, SeekOrigin.Begin);
 
-                        var lastWriteTime = new FileInfo(localPath).LastWriteTime.Ticks;
+                        var lastWriteTime = fileInfo.LastWriteTime.Ticks;
                         var buffer = new byte[PacketFileContentDetailResponse.MaxDataSize];
                         var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Content, packet.Path);
                         response.Pos = stream.Position;
@@ -122,7 +123,6 @@ namespace FileSyncServer
             foreach (var file in output)
             {
                 file.Path = file.Path.Replace(_folder, "");
-                file.Total = output.Count;
                 SendPacket(file);
             }
         }
