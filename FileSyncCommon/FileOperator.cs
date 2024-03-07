@@ -18,7 +18,7 @@ namespace FileSyncCommon;
 
 public class FileOperator
 {
-    private const int BufferSize = 1024 * 1024 * 1024;
+    private const int BufferSize = 1024 * 1024 * 128;//128KB
     public static uint? GetCrc32(string path)
     {
         if (!File.Exists(path))

@@ -19,15 +19,17 @@ namespace FileSyncClient
     {
         private int _clientId;
         private string _folder;
+        private int _interval;
         private int _port;
         private bool _encrypt;
         private byte _encryptKey;
 
         private Timer _timer;
         private RequestCounter<long> _request = new RequestCounter<long>();
-        public Client(string ip, int port, string folder, bool encrypt, byte encryptKey) : base(0, new Socket(SocketType.Stream, ProtocolType.Tcp), encrypt, encryptKey)
+        public Client(string ip, int port, string folder, int interval, bool encrypt, byte encryptKey) : base(0, new Socket(SocketType.Stream, ProtocolType.Tcp), encrypt, encryptKey)
         {
             _folder = folder;
+            _interval = interval;
             _port = port;
             _encrypt = encrypt;
             _encryptKey = encryptKey;
@@ -62,6 +64,8 @@ namespace FileSyncClient
         }
         private void DoFileContentInfoResponse(PacketFileContentInfoResponse packet)
         {
+            Log.Information($"发起请求文件信息: {packet.Path}");
+
             var response = new PacketFileContentDetailRequest(_clientId, DateTime.Now.Ticks, packet.LastPos, packet.Path);
             _request.Increase(response.RequestId, packet.TotalCount);
             _request.Decrease(packet.RequestId);
@@ -101,7 +105,7 @@ namespace FileSyncClient
                                 FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, null);
                                 FileOperator.SetupFile(path, fileResponse.LastWriteTime);
                                 _request.Remove(fileResponse.RequestId);
-                                Log.Information($"{path}已经传输完成。");
+                                Log.Information($"{fileResponse.Path}已经传输完成。");
                             }
                             else //写入位置信息
                             {
@@ -141,7 +145,7 @@ namespace FileSyncClient
                     try
                     {
                         var pos = FileOperator.GetLastPosition(file + ".sync");
-                        request.Checksum = FileOperator.GetCrc32(file + ".sync",pos).GetValueOrDefault();
+                        request.Checksum = FileOperator.GetCrc32(file + ".sync", pos).GetValueOrDefault();
                         request.LastPos = pos;
                         SendPacket(request);
                         _request.Increase(request.RequestId);
@@ -203,12 +207,12 @@ namespace FileSyncClient
                         SendPacket(packet);
                     }
                 });
-                _timer.Change(TimeSpan.FromMinutes(0.3), TimeSpan.FromMinutes(0.3));
+                _timer.Change(TimeSpan.FromMinutes(_interval), TimeSpan.FromMinutes(_interval));
             }
         }
         protected override void OnSocketError(int id, Socket socket, Exception e)
         {
-            while(!socket.Connected)
+            while (!socket.Connected)
             {
                 Reconnect();
             }

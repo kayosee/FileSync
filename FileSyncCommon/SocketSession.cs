@@ -15,7 +15,8 @@ namespace FileSyncCommon;
 
 public abstract class SocketSession
 {
-    private Thread _thread { get; set; }
+    private Thread _reader { get; set; }
+    private Thread _writer { get; set; }
     private byte _encryptKey;
     private Socket _socket;
     private bool _encrypt;
@@ -23,6 +24,8 @@ public abstract class SocketSession
     private int _port;
     private int _id;
     private Dictionary<int, ConstructorInfo> _constructors;
+    private Semaphore _semaphore;
+    private ConcurrentQueue<Packet> _packetQueue;
     public bool IsConnected { get { return _socket.Connected; } }
     protected abstract void OnReceivePackage(Packet packet);
     protected abstract void OnSocketError(int id, Socket socket, Exception e);
@@ -34,7 +37,9 @@ public abstract class SocketSession
         _encrypt = encrypt;
         _encryptKey = encryptKey;
         _constructors = new Dictionary<int, ConstructorInfo>();
-        _thread = new Thread((s) =>
+        _packetQueue= new ConcurrentQueue<Packet>();
+        _semaphore = new Semaphore(32,32);
+        _reader = new Thread((s) =>
         {
             while (true)
             {
@@ -42,12 +47,30 @@ public abstract class SocketSession
                     continue;
 
                 var packet = ReadPacket();
-                if (packet != null)
-                    OnReceivePackage(packet);
+                if (packet != null && _semaphore.WaitOne())
+                {
+                    _packetQueue.Enqueue(packet);
+                }
             }
         });
-        _thread.Name = "read";
-        _thread.Start();
+        _reader.Name = "reader";
+        _reader.Start();
+
+        _writer = new Thread((s) =>
+        {
+            while (true)
+            {
+                if (!_socket.Connected)
+                    continue;
+                if (_packetQueue.TryDequeue(out var packet))
+                {
+                    OnReceivePackage(packet);
+                    _semaphore.Release();
+                }
+            }
+        });
+        _writer.Name = "writer";
+        _writer.Start();
     }
     private byte[] Read(int length)
     {

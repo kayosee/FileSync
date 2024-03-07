@@ -17,26 +17,21 @@ namespace FileSyncServer
         private ConcurrentDictionary<int, ServerSession> _sessions = new ConcurrentDictionary<int, ServerSession>();
         private Socket _socket;
         private Thread _acceptor;
-        private uint _interval;
         private int _port;
         private string _folder;
         private bool _encrypt;
         private byte _encryptKey;
         private int _daysBefore;
-
-        public Server(int port, string folder, uint interval, bool encrypt, byte encryptKey, int daysBefore)
+        public Server(int port, string folder, bool encrypt, byte encryptKey, int daysBefore)
         {
             _port = port;
             _folder = folder;
-            _interval = interval;
             _encrypt = encrypt;
             _encryptKey = encryptKey;
             _daysBefore = daysBefore;
         }
         public int Port { get => _port; set => _port = value; }
         public string Folder { get => _folder; set => _folder = value; }
-        public uint Interval { get => _interval; set => _interval = value; }
-
         public void Start()
         {
             _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
@@ -59,15 +54,13 @@ namespace FileSyncServer
                     }
                 }
             });
+            _acceptor.Name = "acceptor";
             _acceptor.Start();
 
         }
-
-
         public void Stop()
         {
             _socket.Close();
         }
-
     }
 }

@@ -45,6 +45,8 @@ namespace FileSyncServer
 
         private void DoFileContentInfoRequest(PacketFileContentInfoRequest packet)
         {
+            Log.Information($"收到读取文件信息请求:{packet.Path}");
+
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             var fileInfo = new FileInfo(localPath);
 
@@ -68,6 +70,8 @@ namespace FileSyncServer
 
         private void DoFileContentDetailRequest(PacketFileContentDetailRequest packet)
         {
+            Log.Information($"收到读取文件内容请求:{packet.Path}");
+
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             if (!File.Exists(localPath))
                 SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileDeleted, packet.Path));
@@ -106,7 +110,7 @@ namespace FileSyncServer
         }
         private void DoFileListRequest(PacketFileListRequest packet)
         {
-            Log.Information("读取文件列表");
+            Log.Information("收到读取文件列表请求");
 
             var path = _folder;
             var output = new List<PacketFileListDetailResponse>();            
