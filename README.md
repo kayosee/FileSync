@@ -1,1 +1,1 @@
-an easy file sync example base on tcp
+an easy file synchronization example base on tcp
