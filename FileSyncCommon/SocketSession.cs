@@ -24,7 +24,7 @@ public abstract class SocketSession
     private string _ip;
     private int _port;
     private int _id;
-    private Dictionary<int, ConstructorInfo> _constructors;
+    private ConcurrentDictionary<int, ConstructorInfo> _constructors;
     private Semaphore _pushSemaphore;
     private Semaphore _pullSemaphore;
     private bool _running;
@@ -40,7 +40,7 @@ public abstract class SocketSession
 
         _encrypt = encrypt;
         _encryptKey = encryptKey;
-        _constructors = new Dictionary<int, ConstructorInfo>();
+        _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
         _packetQueue = new ConcurrentQueue<Packet>();
         _pushSemaphore = new Semaphore(32, 32);
         _pullSemaphore = new Semaphore(0, 32);
@@ -241,7 +241,7 @@ public abstract class SocketSession
             constructor = type.GetConstructors().First(f => f.GetParameters().Length == 1 && f.GetParameters().Any(s => s.Name == "bytes"));
             if (constructor != null)
             {
-                _constructors.Add(dataType, constructor);
+                _constructors.AddOrUpdate(dataType, constructor, (key, value) => value);
             }
         }
 

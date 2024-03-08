@@ -164,7 +164,7 @@ namespace FileSyncClient
                     try
                     {
                         var pos = FileOperator.GetLastPosition(file + ".sync");
-                        request.Checksum = FileOperator.GetCrc32(file + ".sync", pos).GetValueOrDefault();
+                        request.Checksum = FileOperator.GetCrc32(file + ".sync", pos);
                         request.LastPos = pos;
                         SendPacket(request);
                         _request.Increase(request.RequestId);

@@ -19,11 +19,11 @@ namespace FileSyncCommon;
 public class FileOperator
 {
     private const int BufferSize = 1024 * 1024 * 128;//128KB
-    public static uint? GetCrc32(string path)
+    public static uint GetCrc32(string path)
     {
         if (!File.Exists(path))
         {
-            return null;
+            throw new FileNotFoundException(path);
         }
         else
         {
@@ -40,12 +40,11 @@ public class FileOperator
             }
         }
     }
-
-    public static uint? GetCrc32(string path, long endPos)
+    public static uint GetCrc32(string path, long endPos)
     {
         if (!File.Exists(path))
         {
-            return null;
+            throw new FileNotFoundException(path);
         }
         else
         {
@@ -68,8 +67,6 @@ public class FileOperator
             }
         }
     }
-
-
     public static long GetLastPosition(string path)
     {
         try
@@ -84,7 +81,6 @@ public class FileOperator
             return 0;
         }
     }
-
     public static void WriteFile(string path, long position, byte[] bytes, long? filePosition)
     {
         if (!Path.Exists(path))
@@ -126,25 +122,6 @@ public class FileOperator
             var oldChecksum = Crc32Algorithm.Compute(bytes);
             if (newChecksum != oldChecksum)
                 throw new FileChecksumException(path, position, oldChecksum, newChecksum);
-        }
-    }
-    public static int AppendFile(string path, byte[] bytes)
-    {
-        try
-        {
-            using (var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.None, 0, FileOptions.WriteThrough))
-            {
-                stream.Write(bytes, 0, bytes.Length);
-                stream.Flush();
-                stream.Close();
-                return bytes.Length;
-            }
-        }
-        catch (Exception e)
-        {
-            Log.Error(e.Message);
-            Log.Error(e.StackTrace);
-            return 0;
         }
     }
     public static void SetupFile(string path, long lastWriteTime)

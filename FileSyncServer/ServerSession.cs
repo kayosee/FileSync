@@ -56,12 +56,19 @@ namespace FileSyncServer
             uint checksum = 0;
             if (packet.Checksum != 0 && packet.LastPos > 0)
             {
-                checksum = FileOperator.GetCrc32(localPath, packet.LastPos).GetValueOrDefault();
-                if (checksum != packet.Checksum)//校验不一致，重新传输
+                try
                 {
-                    totalCount = (long)((fileInfo.Length) / PacketFileContentDetailResponse.MaxDataSize);
-                    totalSize = fileInfo.Length;
-                    lastPos = 0;
+                    checksum = FileOperator.GetCrc32(localPath, packet.LastPos);
+                    if (checksum != packet.Checksum)//校验不一致，重新传输
+                    {
+                        totalCount = (long)((fileInfo.Length) / PacketFileContentDetailResponse.MaxDataSize);
+                        totalSize = fileInfo.Length;
+                        lastPos = 0;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("文件检验失败:" + ex.Message);
                 }
             }
             var response = new PacketFileContentInfoResponse(packet.ClientId, packet.RequestId, lastPos, checksum, totalCount, totalSize, packet.Path);
@@ -71,42 +78,49 @@ namespace FileSyncServer
         private void DoFileContentDetailRequest(PacketFileContentDetailRequest packet)
         {
             Log.Information($"收到读取文件内容请求:{packet.Path}");
-
-            var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
-            var fileInfo = new FileInfo(localPath);
-            if (!fileInfo.Exists)
-                SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileDeleted, packet.Path));
-            else
+            try
             {
-                using (var stream = File.OpenRead(localPath))
+                var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
+                var fileInfo = new FileInfo(localPath);
+                if (!fileInfo.Exists)
+                    SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileDeleted, packet.Path));
+                else
                 {
-                    if (packet.StartPos > stream.Length)
+                    using (var stream = File.OpenRead(localPath))
                     {
-                        Log.Error($"请求的位置{packet.StartPos}超出该文件'{localPath}'的大小{stream.Length}");
-                        SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
-                    }
-                    if (stream.Length == 0)
-                    {
-                        var lastWriteTime = fileInfo.LastWriteTime.Ticks;
-                        var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Empty, packet.Path);
-                        response.LastWriteTime = lastWriteTime;
-                        SendPacket(response);
-                    }
-                    else
-                    {
-                        stream.Seek(packet.StartPos, SeekOrigin.Begin);
+                        if (packet.StartPos > stream.Length)
+                        {
+                            Log.Error($"请求的位置{packet.StartPos}超出该文件'{localPath}'的大小{stream.Length}");
+                            SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
+                        }
+                        if (stream.Length == 0)
+                        {
+                            var lastWriteTime = fileInfo.LastWriteTime.Ticks;
+                            var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Empty, packet.Path);
+                            response.LastWriteTime = lastWriteTime;
+                            SendPacket(response);
+                        }
+                        else
+                        {
+                            stream.Seek(packet.StartPos, SeekOrigin.Begin);
 
-                        var lastWriteTime = fileInfo.LastWriteTime.Ticks;
-                        var buffer = new byte[PacketFileContentDetailResponse.MaxDataSize];
-                        var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Content, packet.Path);
-                        response.Pos = stream.Position;
-                        response.FileDataLength = stream.Read(buffer);
-                        response.FileData = buffer.Take(response.FileDataLength).ToArray();
-                        response.FileDataTotal = stream.Length;
-                        response.LastWriteTime = lastWriteTime;
-                        SendPacket(response);
+                            var lastWriteTime = fileInfo.LastWriteTime.Ticks;
+                            var buffer = new byte[PacketFileContentDetailResponse.MaxDataSize];
+                            var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Content, packet.Path);
+                            response.Pos = stream.Position;
+                            response.FileDataLength = stream.Read(buffer);
+                            response.FileData = buffer.Take(response.FileDataLength).ToArray();
+                            response.FileDataTotal = stream.Length;
+                            response.LastWriteTime = lastWriteTime;
+                            SendPacket(response);
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex.ToString());
+                SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
             }
         }
         private void DoFileListRequest(PacketFileListRequest packet)
@@ -114,7 +128,7 @@ namespace FileSyncServer
             Log.Information("收到读取文件列表请求");
 
             var path = _folder;
-            var output = new List<PacketFileListDetailResponse>();            
+            var output = new List<PacketFileListDetailResponse>();
             GetFiles(packet.ClientId, packet.RequestId, new DirectoryInfo(path), DateTime.Now.AddDays(0 - _daysBefore), ref output);
 
             var fileListInfoResponse = new PacketFileListInfoResponse(packet.ClientId, packet.RequestId, output.LongCount(), output.Sum(f => f.FileLength));
