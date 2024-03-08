@@ -49,7 +49,7 @@ namespace FileSyncServer
                     Log.Information("新连接加入");
                     var clientId = _sessions.Count;
                     var session = new ServerSession(clientId, _folder, _daysBefore, client, _encrypt, _encryptKey);
-                    var packet = session.ReceivePacket(TimeSpan.FromSeconds(5));
+                    var packet = session.ReceivePacket(TimeSpan.FromSeconds(1));
                     if (packet != null)
                     {
                         if (packet.DataType == PacketType.AuthenticateRequest)

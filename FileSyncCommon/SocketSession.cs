@@ -27,7 +27,8 @@ public abstract class SocketSession
     private ConcurrentDictionary<int, ConstructorInfo> _constructors;
     private Semaphore _pushSemaphore;
     private Semaphore _pullSemaphore;
-    private bool _running;
+    private ManualResetEvent _conn;
+    private ManualResetEvent _runn;
     private ConcurrentQueue<Packet> _packetQueue;
     public bool IsConnected { get { return _connected; } }
     protected abstract void OnReceivePackage(Packet packet);
@@ -45,21 +46,23 @@ public abstract class SocketSession
         _pushSemaphore = new Semaphore(32, 32);
         _pullSemaphore = new Semaphore(0, 32);
         _connected = socket.Connected;
-
+        _conn = new ManualResetEvent(true);//手动控制连接
+        _runn = new ManualResetEvent(false);//手动控制运行
         _producer = new Thread((s) =>
         {
             while (true)
             {
-                if (!_connected || !_running)
-                    continue;
-
-                var packet = ReadPacket();
-                if (packet != null && _pushSemaphore.WaitOne())
+                if (_conn.WaitOne() && _runn.WaitOne())
                 {
-                    _packetQueue.Enqueue(packet);
-                    _pullSemaphore.Release();
+                    var packet = ReadPacket();
+                    if (packet != null && _pushSemaphore.WaitOne())
+                    {
+                        _packetQueue.Enqueue(packet);
+                        _pullSemaphore.Release();
+                    }
                 }
             }
+            
         });
         _producer.Name = "producer";
         _producer.Start();
@@ -68,13 +71,13 @@ public abstract class SocketSession
         {
             while (true)
             {
-                if (!_connected || !_running)
-                    continue;
-
-                if (_pullSemaphore.WaitOne() && _packetQueue.TryDequeue(out var packet))
-                {
-                    OnReceivePackage(packet);
-                    _pushSemaphore.Release();
+                if (_conn.WaitOne() && _runn.WaitOne())
+                {                
+                    if (_pullSemaphore.WaitOne() && _packetQueue.TryDequeue(out var packet))
+                    {
+                        OnReceivePackage(packet);
+                        _pushSemaphore.Release();
+                    }
                 }
             }
         });
@@ -83,11 +86,11 @@ public abstract class SocketSession
     }
     public void StartMessageLoop()
     {
-        _running = true;
+        _runn.Set();
     }
     public void StopMessageLoop()
     {
-        _running = false;
+        _runn.Reset();
     }
 
     private bool Read(int length, out byte[] buffer)
@@ -112,6 +115,7 @@ public abstract class SocketSession
             if (e.SocketErrorCode != SocketError.TimedOut)
             {
                 _connected = false;
+                _conn.Reset();
                 OnSocketError(_id, _socket, e);
             }
             return false;
@@ -141,6 +145,7 @@ public abstract class SocketSession
         catch (SocketException e)
         {
             _connected = false;
+            _conn.Reset();
             OnSocketError(_id, _socket, e);
             return 0;
         }
@@ -208,6 +213,7 @@ public abstract class SocketSession
             _port = port;
             _socket.Connect(IPAddress.Parse(ip), port);
             _connected = true;
+            _conn.Set();
             OnConnected(_socket);
             return true;
         }
@@ -254,6 +260,8 @@ public abstract class SocketSession
     {
         if (_connected)
         {
+            _conn.WaitOne();
+            _conn.WaitOne();
             _connected = false;
             _socket.Close();
         }
