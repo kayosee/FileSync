@@ -23,19 +23,21 @@ namespace FileSyncClient
         private int _port;
         private bool _encrypt;
         private byte _encryptKey;
-
+        private string _password;
         private Timer _timer;
         private RequestCounter<long> _request = new RequestCounter<long>();
-        public Client(string ip, int port, string folder, int interval, bool encrypt, byte encryptKey) : base(0, new Socket(SocketType.Stream, ProtocolType.Tcp), encrypt, encryptKey)
+        public Client(string ip, int port, string folder, int interval, bool encrypt, byte encryptKey, string password) : base(0, new Socket(SocketType.Stream, ProtocolType.Tcp), encrypt, encryptKey)
         {
             _folder = folder;
             _interval = interval;
             _port = port;
             _encrypt = encrypt;
             _encryptKey = encryptKey;
+            _password = password;
             if (Connect(ip, port))
             {
                 Log.Information($"已连接到服务器:{ip}:{port}");
+                StartMessageLoop();
             }
         }
         protected override void OnReceivePackage(Packet packet)
@@ -46,6 +48,9 @@ namespace FileSyncClient
                 {
                     case PacketType.Handshake:
                         DoHandshake((PacketHandshake)packet);
+                        break;
+                    case PacketType.AuthenticateResponse:
+                        DoAuthenticateResponse((PacketAuthenticateResponse)packet); 
                         break;
                     case PacketType.FileListInfoResponse:
                         DoFileListInfoResponse((PacketFileListInfoResponse)packet);
@@ -62,6 +67,20 @@ namespace FileSyncClient
                 }
             }
         }
+
+        private void DoAuthenticateResponse(PacketAuthenticateResponse packet)
+        {
+            if(!packet.OK)
+            {
+                Log.Error("验证失败，连接断开");
+                base.StopMessageLoop();
+            }
+            else
+            {
+                Log.Information("验证成功");
+            }
+        }
+
         private void DoFileContentInfoResponse(PacketFileContentInfoResponse packet)
         {
             Log.Information($"发起请求文件信息: {packet.Path}");
@@ -217,8 +236,10 @@ namespace FileSyncClient
                 Reconnect();
             }
         }
-        protected override void OnConnected()
+        protected override void OnConnected(Socket socket)
         {
+            var packet = new PacketAuthenticateRequest(0, 0, _password);
+            SendPacket(packet);
         }
     }
 }

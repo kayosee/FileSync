@@ -165,6 +165,5 @@ namespace FileSyncServer
                 Console.WriteLine(e.ToString());
             }
         }
-
     }
 }

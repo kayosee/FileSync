@@ -58,7 +58,7 @@ namespace FileSyncCommon
                 stream.Write(_requestId);
                 stream.Write(_lastPos);
                 stream.Write(_checksum);
-                byte[] buffer = Encoding.UTF8.GetBytes(Path);
+                byte[] buffer = Encoding.UTF8.GetBytes(_path);
                 _pathLength = buffer.Length;
                 stream.Write(_pathLength);
 

@@ -13,11 +13,12 @@ namespace FileSyncClient
             var interval = int.Parse(ConfigurationManager.AppSettings["interval"]);
             var encrypt = bool.Parse(ConfigurationManager.AppSettings["encrypt"]);
             var encryptKey = byte.Parse(ConfigurationManager.AppSettings["encryptKey"]);
+            var password = (ConfigurationManager.AppSettings["password"]);
             Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("run.log", rollingInterval: RollingInterval.Day).CreateLogger();
 
             try
             {
-                var client = new Client(ip, int.Parse(port), folder, interval, encrypt, encryptKey);
+                var client = new Client(ip, int.Parse(port), folder, interval, encrypt, encryptKey, password);
             }
             catch (Exception e)
             {

@@ -21,13 +21,15 @@ namespace FileSyncServer
         private string _folder;
         private bool _encrypt;
         private byte _encryptKey;
+        private string _password;
         private int _daysBefore;
-        public Server(int port, string folder, bool encrypt, byte encryptKey, int daysBefore)
+        public Server(int port, string folder, bool encrypt, byte encryptKey, string password, int daysBefore)
         {
             _port = port;
             _folder = folder;
             _encrypt = encrypt;
             _encryptKey = encryptKey;
+            _password = password;
             _daysBefore = daysBefore;
         }
         public int Port { get => _port; set => _port = value; }
@@ -43,15 +45,33 @@ namespace FileSyncServer
                 while (true)
                 {
                     var client = _socket.Accept();
+
                     Log.Information("新连接加入");
-
                     var clientId = _sessions.Count;
-                    var session = new ServerSession(clientId, _folder,_daysBefore, client, _encrypt, _encryptKey);
-
-                    if (_sessions.TryAdd(clientId, session))
+                    var session = new ServerSession(clientId, _folder, _daysBefore, client, _encrypt, _encryptKey);
+                    var packet = session.ReceivePacket(TimeSpan.FromSeconds(5));
+                    if (packet != null)
                     {
-                        session.SendPacket(new PacketHandshake(clientId));
+                        if (packet.DataType == PacketType.AuthenticateRequest)
+                        {
+                            var request = (PacketAuthenticateRequest)packet;
+                            if (request.Password == _password)
+                            {
+                                Log.Information("验证成功");
+                                session.SendPacket(new PacketAuthenticateResponse(clientId, request.RequestId, true));
+                                session.StartMessageLoop();
+                                if (_sessions.TryAdd(clientId, session))
+                                {
+                                    session.SendPacket(new PacketHandshake(clientId));
+                                }
+                                continue;
+                            }
+                        }
                     }
+
+                    Log.Error("验证失败");
+                    session.SendPacket(new PacketAuthenticateResponse(clientId, 0, false));
+                    session.Disconnect();
                 }
             });
             _acceptor.Name = "acceptor";

@@ -15,8 +15,8 @@ namespace FileSyncCommon;
 
 public abstract class SocketSession
 {
-    private Thread _reader { get; set; }
-    private Thread _writer { get; set; }
+    private Thread _producer;
+    private Thread _consumer;
     private bool _connected;
     private byte _encryptKey;
     private Socket _socket;
@@ -27,8 +27,9 @@ public abstract class SocketSession
     private Dictionary<int, ConstructorInfo> _constructors;
     private Semaphore _pushSemaphore;
     private Semaphore _pullSemaphore;
+    private bool _running;
     private ConcurrentQueue<Packet> _packetQueue;
-    public bool IsConnected { get { return _socket.Connected; } }
+    public bool IsConnected { get { return _connected; } }
     protected abstract void OnReceivePackage(Packet packet);
     protected abstract void OnSocketError(int id, Socket socket, Exception e);
     public SocketSession(int id, Socket socket, bool encrypt, byte encryptKey)
@@ -36,18 +37,20 @@ public abstract class SocketSession
         _id = id;
         _socket = socket;
         _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
         _encrypt = encrypt;
         _encryptKey = encryptKey;
         _constructors = new Dictionary<int, ConstructorInfo>();
-        _packetQueue= new ConcurrentQueue<Packet>();
-        _pushSemaphore = new Semaphore(32,32);
+        _packetQueue = new ConcurrentQueue<Packet>();
+        _pushSemaphore = new Semaphore(32, 32);
         _pullSemaphore = new Semaphore(0, 32);
         _connected = socket.Connected;
-        _reader = new Thread((s) =>
+
+        _producer = new Thread((s) =>
         {
             while (true)
             {
-                if (!_connected)
+                if (!_connected || !_running)
                     continue;
 
                 var packet = ReadPacket();
@@ -58,15 +61,16 @@ public abstract class SocketSession
                 }
             }
         });
-        _reader.Name = "reader";
-        _reader.Start();
+        _producer.Name = "producer";
+        _producer.Start();
 
-        _writer = new Thread((s) =>
+        _consumer = new Thread((s) =>
         {
             while (true)
             {
-                if (!_connected)
+                if (!_connected || !_running)
                     continue;
+
                 if (_pullSemaphore.WaitOne() && _packetQueue.TryDequeue(out var packet))
                 {
                     OnReceivePackage(packet);
@@ -74,12 +78,21 @@ public abstract class SocketSession
                 }
             }
         });
-        _writer.Name = "writer";
-        _writer.Start();
+        _consumer.Name = "consumer";
+        _consumer.Start();
     }
-    private byte[] Read(int length)
+    public void StartMessageLoop()
     {
-        var buffer = new byte[length];
+        _running = true;
+    }
+    public void StopMessageLoop()
+    {
+        _running = false;
+    }
+
+    private bool Read(int length, out byte[] buffer)
+    {
+        buffer = new byte[length];
         try
         {
             var total = 0;
@@ -89,14 +102,28 @@ public abstract class SocketSession
             }
 
             if (_encrypt)
-                return buffer.Apply(f => f ^= _encryptKey);
+            {
+                buffer = buffer.Apply(f => f ^= _encryptKey);
+            }
+            return true;
         }
         catch (SocketException e)
         {
-            _connected = false;
-            OnSocketError(_id, _socket, e);
+            if (e.SocketErrorCode != SocketError.TimedOut)
+            {
+                _connected = false;
+                OnSocketError(_id, _socket, e);
+            }
+            return false;
         }
-        return buffer;
+    }
+
+    private bool ReadAppend(int length, out byte[] buffer,ref List<byte> appender)
+    {
+        var ok = (Read(length, out buffer));
+        if(ok)
+            appender.AddRange(buffer);
+        return ok;
     }
     private int Write(byte[] buffer)
     {
@@ -121,8 +148,9 @@ public abstract class SocketSession
     private Packet? ReadPacket()
     {
         var whole = new List<byte>();
-        var buffer = Read(1);
-        whole.AddRange(buffer);
+
+        if (!ReadAppend(1, out var buffer,ref whole))
+            return null;
 
         byte dataType = buffer[0];
         if (!Enum.IsDefined(typeof(PacketType), (int)dataType))
@@ -131,19 +159,22 @@ public abstract class SocketSession
             return null;
         }
 
-        buffer = Read(Packet.Int32Size);
-        whole.AddRange(buffer);
+        if (!ReadAppend(Packet.Int32Size, out buffer, ref whole))
+            return null;
+
         var dataLength = BitConverter.ToInt32(buffer);
 
-        buffer = Read(Packet.Int32Size);
-        whole.AddRange(buffer);
+        if (!ReadAppend(Packet.Int32Size, out buffer, ref whole))
+            return null;
+
         var clientId = BitConverter.ToInt32(buffer);
 
-        var data = Read(dataLength);
-        whole.AddRange(data);
+        if (!ReadAppend(dataLength, out buffer, ref whole))
+            return null;
 
-        buffer = Read(sizeof(uint));//checksum
-        whole.AddRange(buffer);
+        if (!ReadAppend(sizeof(uint), out buffer, ref whole))//checksum
+            return null;
+
         if (!Crc32Algorithm.IsValidWithCrcAtEnd(whole.ToArray()))
         {
             Log.Error("Crc检验出错");
@@ -161,6 +192,14 @@ public abstract class SocketSession
     {
         Write(packet.GetBytes());
     }
+    public Packet? ReceivePacket(TimeSpan timeout)
+    {
+        var temp = _socket.ReceiveTimeout;
+        _socket.ReceiveTimeout = (int)timeout.TotalMilliseconds;
+        var packet = ReadPacket();
+        _socket.ReceiveTimeout = temp;
+        return packet;
+    }
     public bool Connect(string ip, int port)
     {
         try
@@ -169,7 +208,7 @@ public abstract class SocketSession
             _port = port;
             _socket.Connect(IPAddress.Parse(ip), port);
             _connected = true;
-            OnConnected();
+            OnConnected(_socket);
             return true;
         }
         catch (Exception e)
@@ -182,23 +221,11 @@ public abstract class SocketSession
 
     public bool Reconnect()
     {
-        try
-        {
-            _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-            _socket.Connect(_ip, _port);
-            _connected = true;
-            OnConnected();
-            return true;
-        }
-        catch (Exception e)
-        {
-            Log.Error(e.Message);
-            Log.Error(e.StackTrace);
-            return false;
-        }
+        _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+        return Connect(_ip, _port);
     }
 
-    protected virtual void OnConnected() { }
+    protected virtual void OnConnected(Socket socket) { }
 
     private object? ConvertPacket(int dataType, byte[] data)
     {
@@ -222,5 +249,13 @@ public abstract class SocketSession
             return constructor.Invoke(new object[] { data });
 
         return null;
+    }
+    public void Disconnect()
+    {
+        if (_connected)
+        {
+            _connected = false;
+            _socket.Close();
+        }
     }
 }

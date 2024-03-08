@@ -8,6 +8,8 @@ namespace FileSyncCommon;
 
 public enum PacketType
 {
+    AuthenticateRequest,
+    AuthenticateResponse,
     Handshake ,
     FileListRequest ,
     FileListInfoResponse,
