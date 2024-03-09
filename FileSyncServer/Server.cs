@@ -23,6 +23,7 @@ namespace FileSyncServer
         private byte _encryptKey;
         private string _password;
         private int _daysBefore;
+        private const int AuthenticateTimeout = 3;
         public Server(int port, string folder, bool encrypt, byte encryptKey, string password, int daysBefore)
         {
             _port = port;
@@ -49,7 +50,7 @@ namespace FileSyncServer
                     Log.Information("新连接加入");
                     var clientId = _sessions.Count;
                     var session = new ServerSession(clientId, _folder, _daysBefore, client, _encrypt, _encryptKey);
-                    var packet = session.ReceivePacket(TimeSpan.FromSeconds(1));
+                    var packet = session.ReceivePacket(TimeSpan.FromSeconds(AuthenticateTimeout));
                     if (packet != null)
                     {
                         if (packet.DataType == PacketType.AuthenticateRequest)
@@ -71,7 +72,10 @@ namespace FileSyncServer
 
                     Log.Error("验证失败");
                     session.SendPacket(new PacketAuthenticateResponse(clientId, 0, false));
-                    session.Disconnect();
+                    _ = new Timer((e) =>
+                    {
+                        session.Disconnect();
+                    }, null, TimeSpan.FromSeconds(AuthenticateTimeout), Timeout.InfiniteTimeSpan);//超时关闭验证失败连接
                 }
             });
             _acceptor.Name = "acceptor";

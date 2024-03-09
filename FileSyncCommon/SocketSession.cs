@@ -50,34 +50,27 @@ public abstract class SocketSession
         _runn = new ManualResetEvent(false);//手动控制运行
         _producer = new Thread((s) =>
         {
-            while (true)
+            while (_conn.WaitOne() && _runn.WaitOne())
             {
-                if (_conn.WaitOne() && _runn.WaitOne())
+                var packet = ReadPacket();
+                if (packet != null && _pushSemaphore.WaitOne())
                 {
-                    var packet = ReadPacket();
-                    if (packet != null && _pushSemaphore.WaitOne())
-                    {
-                        _packetQueue.Enqueue(packet);
-                        _pullSemaphore.Release();
-                    }
+                    _packetQueue.Enqueue(packet);
+                    _pullSemaphore.Release();
                 }
             }
-            
         });
         _producer.Name = "producer";
         _producer.Start();
 
         _consumer = new Thread((s) =>
         {
-            while (true)
+            while (_conn.WaitOne() && _runn.WaitOne())
             {
-                if (_conn.WaitOne() && _runn.WaitOne())
-                {                
-                    if (_pullSemaphore.WaitOne() && _packetQueue.TryDequeue(out var packet))
-                    {
-                        OnReceivePackage(packet);
-                        _pushSemaphore.Release();
-                    }
+                if (_pullSemaphore.WaitOne() && _packetQueue.TryDequeue(out var packet))
+                {
+                    OnReceivePackage(packet);
+                    _pushSemaphore.Release();
                 }
             }
         });
@@ -92,7 +85,6 @@ public abstract class SocketSession
     {
         _runn.Reset();
     }
-
     private bool Read(int length, out byte[] buffer)
     {
         buffer = new byte[length];
@@ -106,7 +98,7 @@ public abstract class SocketSession
 
             if (_encrypt)
             {
-                buffer = buffer.Apply(f => f ^= _encryptKey);
+                buffer.ForEach<byte>(f => f ^= _encryptKey);
             }
             return true;
         }
@@ -137,8 +129,7 @@ public abstract class SocketSession
             Crc32Algorithm.ComputeAndWriteToEnd(buffer);
 
             if (_encrypt)
-                buffer = buffer.Apply(f => f ^= _encryptKey);
-
+                buffer.ForEach<byte>(f => f ^= _encryptKey);
             int sent = _socket.Send(buffer);
             return sent;
         }
@@ -260,9 +251,8 @@ public abstract class SocketSession
     {
         if (_connected)
         {
-            _conn.WaitOne();
-            _conn.WaitOne();
             _connected = false;
+            _conn.Reset();
             _socket.Close();
         }
     }

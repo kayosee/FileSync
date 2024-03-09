@@ -231,7 +231,7 @@ namespace FileSyncClient
         }
         protected override void OnSocketError(int id, Socket socket, Exception e)
         {
-            while (!socket.Connected)
+            while (!IsConnected)
             {
                 Reconnect();
             }
