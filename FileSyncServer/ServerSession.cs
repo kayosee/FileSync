@@ -141,7 +141,7 @@ namespace FileSyncServer
             }
         }
 
-        protected override void OnSocketError(int id, Socket socket, Exception e)
+        protected override void OnSocketError(int id, Exception e)
         {
             if (!IsConnected)
             {

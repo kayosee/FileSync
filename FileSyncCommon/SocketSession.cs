@@ -32,12 +32,11 @@ public abstract class SocketSession
     private ConcurrentQueue<Packet> _packetQueue;
     public bool IsConnected { get { return _connected; } }
     protected abstract void OnReceivePackage(Packet packet);
-    protected abstract void OnSocketError(int id, Socket socket, Exception e);
+    protected abstract void OnSocketError(int id, Exception e);
     public SocketSession(int id, Socket socket, bool encrypt, byte encryptKey)
     {
         _id = id;
-        _socket = socket;
-        _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+        _socket = socket; 
 
         _encrypt = encrypt;
         _encryptKey = encryptKey;
@@ -104,16 +103,12 @@ public abstract class SocketSession
         }
         catch (SocketException e)
         {
-            if (e.SocketErrorCode != SocketError.TimedOut)
-            {
-                _connected = false;
-                _conn.Reset();
-                OnSocketError(_id, _socket, e);
-            }
+            _connected = false;
+            _conn.Reset();
+            OnSocketError(_id, e);
             return false;
         }
     }
-
     private bool ReadAppend(int length, out byte[] buffer,ref List<byte> appender)
     {
         var ok = (Read(length, out buffer));
@@ -137,7 +132,7 @@ public abstract class SocketSession
         {
             _connected = false;
             _conn.Reset();
-            OnSocketError(_id, _socket, e);
+            OnSocketError(_id, e);
             return 0;
         }
     }
@@ -184,14 +179,21 @@ public abstract class SocketSession
         }
         return null;
     }
-    public void SendPacket(Packet packet)
+    public void SendPacket(Packet packet, TimeSpan? timeout = null)
     {
+        var temp = _socket.SendTimeout;
+        if (timeout != null)
+            _socket.SendTimeout = (int)timeout.Value.TotalMilliseconds;
+
         Write(packet.GetBytes());
+        _socket.SendTimeout = temp;
+
     }
-    public Packet? ReceivePacket(TimeSpan timeout)
+    public Packet? ReceivePacket(TimeSpan? timeout = null)
     {
         var temp = _socket.ReceiveTimeout;
-        _socket.ReceiveTimeout = (int)timeout.TotalMilliseconds;
+        if (timeout != null)
+            _socket.ReceiveTimeout = (int)timeout.Value.TotalMilliseconds;
         var packet = ReadPacket();
         _socket.ReceiveTimeout = temp;
         return packet;
@@ -215,15 +217,12 @@ public abstract class SocketSession
             return false;
         }
     }
-
     public bool Reconnect()
     {
         _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
         return Connect(_ip, _port);
     }
-
     protected virtual void OnConnected(Socket socket) { }
-
     private object? ConvertPacket(int dataType, byte[] data)
     {
         ConstructorInfo constructor = null;
@@ -249,11 +248,8 @@ public abstract class SocketSession
     }
     public void Disconnect()
     {
-        if (_connected)
-        {
-            _connected = false;
-            _conn.Reset();
-            _socket.Close();
-        }
+        _connected = false;
+        _conn.Reset();
+        _socket.Close();
     }
 }

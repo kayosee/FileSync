@@ -46,8 +46,8 @@ namespace FileSyncServer
                 while (true)
                 {
                     var client = _socket.Accept();
-
                     Log.Information("新连接加入");
+
                     var clientId = _sessions.Count;
                     var session = new ServerSession(clientId, _folder, _daysBefore, client, _encrypt, _encryptKey);
                     var packet = session.ReceivePacket(TimeSpan.FromSeconds(AuthenticateTimeout));
@@ -59,6 +59,7 @@ namespace FileSyncServer
                             if (request.Password == _password)
                             {
                                 Log.Information("验证成功");
+                                client.IOControl(IOControlCode.KeepAliveValues, KeepAlive(1, 3000, 1000), null);//设置Keep-Alive参数
                                 session.SendPacket(new PacketAuthenticateResponse(clientId, request.RequestId, true));
                                 session.StartMessageLoop();
                                 if (_sessions.TryAdd(clientId, session))
@@ -75,7 +76,7 @@ namespace FileSyncServer
                     _ = new Timer((e) =>
                     {
                         session.Disconnect();
-                    }, null, TimeSpan.FromSeconds(AuthenticateTimeout), Timeout.InfiniteTimeSpan);//超时关闭验证失败连接
+                    }, null, TimeSpan.FromSeconds(AuthenticateTimeout), Timeout.InfiniteTimeSpan);//超时关闭验证失败连接,定时是为了发送结果出去
                 }
             });
             _acceptor.Name = "acceptor";
@@ -85,6 +86,15 @@ namespace FileSyncServer
         public void Stop()
         {
             _socket.Close();
+        }
+
+        private byte[] KeepAlive(int onOff, int keepAliveTime, int keepAliveInterval)
+        {
+            byte[] buffer = new byte[12];
+            BitConverter.GetBytes(onOff).CopyTo(buffer, 0);
+            BitConverter.GetBytes(keepAliveTime).CopyTo(buffer, 4);
+            BitConverter.GetBytes(keepAliveInterval).CopyTo(buffer, 8);
+            return buffer;
         }
     }
 }

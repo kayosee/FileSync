@@ -67,7 +67,6 @@ namespace FileSyncClient
                 }
             }
         }
-
         private void DoAuthenticateResponse(PacketAuthenticateResponse packet)
         {
             if(!packet.OK)
@@ -80,7 +79,6 @@ namespace FileSyncClient
                 Log.Information("验证成功");
             }
         }
-
         private void DoFileContentInfoResponse(PacketFileContentInfoResponse packet)
         {
             Log.Information($"发起请求文件信息: {packet.Path}");
@@ -229,12 +227,13 @@ namespace FileSyncClient
                 _timer.Change(TimeSpan.FromMinutes(_interval), TimeSpan.FromMinutes(_interval));
             }
         }
-        protected override void OnSocketError(int id, Socket socket, Exception e)
+        protected override void OnSocketError(int id, Exception e)
         {
             while (!IsConnected)
             {
                 Reconnect();
             }
+            _request.Clear();
         }
         protected override void OnConnected(Socket socket)
         {

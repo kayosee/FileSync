@@ -31,5 +31,9 @@ namespace FileSyncCommon
             get { return _counter.GetValueOrDefault(key, 0); }
         }
         public bool IsEmpty { get { return _counter.Count == 0; } }
+        public void Clear()
+        {
+            _counter.Clear();
+        }
     }
 }
