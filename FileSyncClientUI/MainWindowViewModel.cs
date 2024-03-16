@@ -1,6 +1,7 @@
 ﻿using FileSyncCommon;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -11,41 +12,17 @@ using UICommon;
 
 namespace FileSyncClientUI
 {
-    public class MainWindowViewModel :Client, INotifyPropertyChanged
+    public class MainWindowViewModel : INotifyPropertyChanged
     {
+        public ObservableCollection<ClientModelView> Clients { get; set; }
+        public MainWindowViewModel()
+        {
+            Clients = new ObservableCollection<ClientModelView>();
+        }
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string name = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-        }
-        public ICommand Stop
-        {
-            get
-            {
-                return new SimpleCommand((f => true), f =>
-                {
-                    Disconnect();
-                    OnPropertyChanged(nameof(IsConnected));
-                    OnPropertyChanged(nameof(IsRunning));
-                });
-            }
-        }
-        public ICommand Start
-        {
-            get
-            {
-                return new SimpleCommand((f => true), f =>
-                {
-                    if (!IsConnected)
-                    {
-                        if (Connect())
-                        {
-                            OnPropertyChanged(nameof(IsConnected));
-                            OnPropertyChanged(nameof(IsRunning));
-                        }
-                    }
-                });
-            }
         }
     }
 }

@@ -10,7 +10,8 @@ namespace FileSyncClient
         {
             var ip = ConfigurationManager.AppSettings["ip"];
             var port = ConfigurationManager.AppSettings["port"];
-            var folder = ConfigurationManager.AppSettings["folder"];
+            var localFolder = ConfigurationManager.AppSettings["localFolder"]; 
+            var remoteFolder = ConfigurationManager.AppSettings["remoteFolder"];
             var interval = int.Parse(ConfigurationManager.AppSettings["interval"]);
             var encrypt = bool.Parse(ConfigurationManager.AppSettings["encrypt"]);
             var encryptKey = byte.Parse(ConfigurationManager.AppSettings["encryptKey"]);
@@ -19,7 +20,8 @@ namespace FileSyncClient
 
             try
             {
-                var client = new Client(ip, int.Parse(port), folder, interval, encrypt, encryptKey, password);
+                var client = new Client(localFolder, remoteFolder, interval);
+                client.Connect(ip, int.Parse(port), encrypt, encryptKey, password);
             }
             catch (Exception e)
             {

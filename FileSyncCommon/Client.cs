@@ -20,7 +20,8 @@ namespace FileSyncCommon
         private string _host;
         private int _port;
         private int _clientId;
-        private string _folder;
+        private string _localFolder;
+        private string _remoteFolder;
         private int _interval;
         private bool _encrypt;
         private byte _encryptKey;
@@ -32,7 +33,7 @@ namespace FileSyncCommon
         public string Host { get => _host; set => _host = value; }
         public int Port { get => _port; set => _port = value; }
         public int ClientId { get => _clientId; set => _clientId = value; }
-        public string Folder { get => _folder; set => _folder = value; }
+        public string LocalFolder { get => _localFolder; set => _localFolder = value; }
         public int Interval { get => _interval; set => _interval = value; }
         public string Password { get => _password; set => _password = value; }
         public bool IsConnected
@@ -45,20 +46,16 @@ namespace FileSyncCommon
         public bool IsRunning { get { return _session != null && _session.IsRunning; } }
         public bool Encrypt { get => _encrypt; set => _encrypt = value; }
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
+        public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
 
         public Client()
         {
-            _interval = 1;
-            _folder = Environment.CurrentDirectory;
-            _host = "127.0.0.1";
-            _port = 2121;
         }
-        public Client(string host, int port, string folder, int interval) 
+        public Client(string localFolder, string remoteFolder, int interval)
         {
-            _folder = folder;
+            _localFolder = localFolder;
+            _remoteFolder = remoteFolder;
             _interval = interval;
-            _host = host;
-            _port = port;
         }
         private void OnReceivePackage(Packet packet)
         {
@@ -115,7 +112,7 @@ namespace FileSyncCommon
         }
         private void DoFileContentDetailResponse(PacketFileContentDetailResponse fileResponse)
         {
-            var path = System.IO.Path.Combine(_folder, fileResponse.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
+            var path = System.IO.Path.Combine(_localFolder, fileResponse.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             switch (fileResponse.ResponseType)
             {
                 case FileResponseType.Empty:
@@ -171,7 +168,7 @@ namespace FileSyncCommon
         }
         private void DoFileListDetailResponse(PacketFileListDetailResponse fileInformation)
         {
-            var file = System.IO.Path.Combine(_folder, fileInformation.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
+            var file = System.IO.Path.Combine(_localFolder, fileInformation.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             var request = new PacketFileContentInfoRequest(_clientId, DateTime.Now.Ticks, 0, 0, fileInformation.Path);
 
             var localFileInfo = new System.IO.FileInfo(file);
@@ -239,7 +236,7 @@ namespace FileSyncCommon
                 {
                     if (_request.IsEmpty)
                     {
-                        var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _folder);
+                        var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
                         _request.Increase(packet.RequestId, 0);
                         _session.SendPacket(packet);
                     }

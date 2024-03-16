@@ -47,7 +47,6 @@ namespace FileSyncServer
                 }
             }
         }
-
         private void DoFileContentInfoRequest(PacketFileContentInfoRequest packet)
         {
             Log.Information($"收到读取文件信息请求:{packet.Path}");
@@ -79,7 +78,6 @@ namespace FileSyncServer
             var response = new PacketFileContentInfoResponse(packet.ClientId, packet.RequestId, lastPos, checksum, totalCount, totalSize, packet.Path);
             _session.SendPacket(response);
         }
-
         private void DoFileContentDetailRequest(PacketFileContentDetailRequest packet)
         {
             Log.Information($"收到读取文件内容请求:{packet.Path}");
@@ -132,9 +130,9 @@ namespace FileSyncServer
         {
             Log.Information("收到读取文件列表请求");
 
-            var path = _folder;
+            var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             var output = new List<PacketFileListDetailResponse>();
-            GetFiles(packet.ClientId, packet.RequestId, new DirectoryInfo(path), DateTime.Now.AddDays(0 - _daysBefore), ref output);
+            GetFiles(packet.ClientId, packet.RequestId, new DirectoryInfo(localPath), DateTime.Now.AddDays(0 - _daysBefore), ref output);
 
             var fileListInfoResponse = new PacketFileListInfoResponse(packet.ClientId, packet.RequestId, output.LongCount(), output.Sum(f => f.FileLength));
             _session.SendPacket(fileListInfoResponse);
@@ -145,7 +143,6 @@ namespace FileSyncServer
                 _session.SendPacket(file);
             }
         }
-
         protected void OnSocketError(int id, Exception e)
         {
             if (!_session.Socket.Connected)
@@ -154,7 +151,6 @@ namespace FileSyncServer
                 _session.Disconnect();
             }
         }
-
         private void GetFiles(int clientId, long requestId, DirectoryInfo directory, DateTime createBefore, ref List<PacketFileListDetailResponse> result)
         {
             try
