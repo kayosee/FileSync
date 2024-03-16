@@ -13,44 +13,51 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
-public abstract class SocketSession
+public sealed class SocketSession
 {
+    private int _id;
+    private bool _encrypt;
+    private byte _encryptKey;
     private Thread _producer;
     private Thread _consumer;
-    private bool _connected;
-    private byte _encryptKey;
     private Socket _socket;
-    private bool _encrypt;
-    private string _ip;
-    private int _port;
-    private int _id;
     private ConcurrentDictionary<int, ConstructorInfo> _constructors;
+    private volatile Boolean _disposed;
     private Semaphore _pushSemaphore;
     private Semaphore _pullSemaphore;
-    private ManualResetEvent _conn;
-    private ManualResetEvent _runn;
+    private Signal _running;
     private ConcurrentQueue<Packet> _packetQueue;
-    public bool IsConnected { get { return _connected; } }
-    protected abstract void OnReceivePackage(Packet packet);
-    protected abstract void OnSocketError(int id, Exception e);
-    public SocketSession(int id, Socket socket, bool encrypt, byte encryptKey)
-    {
-        _id = id;
-        _socket = socket; 
 
-        _encrypt = encrypt;
-        _encryptKey = encryptKey;
+    public bool IsRunning
+    {
+        get
+        {
+            return _running.State;
+        }
+    }
+    public bool Encrypt { get => _encrypt; set => _encrypt = value; }
+    public int Id { get => _id; set => _id = value; }
+    public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
+    public Socket Socket { get => _socket; set => _socket = value; }
+    public delegate void ReceivePackage(Packet packet);
+    public delegate void SocketError(int id, Exception e);
+    public ReceivePackage OnReceivePackage { get; set; }
+    public SocketError OnSocketError { get; set; }
+    public void Initialize()
+    {
+        _disposed = false;
         _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
         _packetQueue = new ConcurrentQueue<Packet>();
         _pushSemaphore = new Semaphore(32, 32);
         _pullSemaphore = new Semaphore(0, 32);
-        _connected = socket.Connected;
-        _conn = new ManualResetEvent(true);//手动控制连接
-        _runn = new ManualResetEvent(false);//手动控制运行
+        _running = new Signal(false);//手动控制运行
         _producer = new Thread((s) =>
         {
-            while (_conn.WaitOne() && _runn.WaitOne())
+            while (_running.Wait())
             {
+                if(_disposed) 
+                    break;
+
                 var packet = ReadPacket();
                 if (packet != null && _pushSemaphore.WaitOne())
                 {
@@ -64,25 +71,89 @@ public abstract class SocketSession
 
         _consumer = new Thread((s) =>
         {
-            while (_conn.WaitOne() && _runn.WaitOne())
+            while (_running.Wait())
             {
+                if (_disposed)
+                    break;
+
                 if (_pullSemaphore.WaitOne() && _packetQueue.TryDequeue(out var packet))
                 {
-                    OnReceivePackage(packet);
                     _pushSemaphore.Release();
+                    if (OnReceivePackage != null)
+                        OnReceivePackage.Invoke(packet);
                 }
             }
         });
         _consumer.Name = "consumer";
         _consumer.Start();
+
+    }
+    public SocketSession(int id, Socket socket, bool encrypt, byte encryptKey)
+    {
+        Initialize();
+        _id = id;
+        _socket = socket; 
+        _encrypt = encrypt;
+        _encryptKey = encryptKey;
     }
     public void StartMessageLoop()
     {
-        _runn.Set();
+        _running.Promitted();
     }
     public void StopMessageLoop()
     {
-        _runn.Reset();
+        _running.Prohibited();
+    }
+    public void Disconnect()
+    {
+        try
+        {
+            _disposed = true;
+            _socket.Close();
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+    public void SendPacket(Packet packet, TimeSpan? timeout = null)
+    {
+        try
+        {
+            var temp = _socket.SendTimeout;
+            if (timeout != null)
+                _socket.SendTimeout = (int)timeout.Value.TotalMilliseconds;
+
+            Write(packet.GetBytes());
+            _socket.SendTimeout = temp;
+
+        }
+        catch (Exception e)
+        {
+            if (_disposed)
+                return;
+
+            if (OnSocketError != null)
+                OnSocketError(_id, e);
+        }
+    }
+    public Packet? ReceivePacket(TimeSpan? timeout = null)
+    {
+        try
+        {
+            var temp = _socket.ReceiveTimeout;
+            if (timeout != null)
+                _socket.ReceiveTimeout = (int)timeout.Value.TotalMilliseconds;
+            var packet = ReadPacket();
+            _socket.ReceiveTimeout = temp;
+            return packet;
+        }
+        catch (Exception e)
+        {
+            if (!_disposed && OnSocketError != null)
+                OnSocketError(_id, e);
+            return null;
+        }
     }
     private bool Read(int length, out byte[] buffer)
     {
@@ -103,9 +174,8 @@ public abstract class SocketSession
         }
         catch (SocketException e)
         {
-            _connected = false;
-            _conn.Reset();
-            OnSocketError(_id, e);
+            if (!_disposed && OnSocketError != null)
+                OnSocketError(_id, e);
             return false;
         }
     }
@@ -130,9 +200,11 @@ public abstract class SocketSession
         }
         catch (SocketException e)
         {
-            _connected = false;
-            _conn.Reset();
-            OnSocketError(_id, e);
+            if (_disposed)
+                return 0;
+
+            if (OnSocketError != null)
+                OnSocketError(_id, e);
             return 0;
         }
     }
@@ -179,50 +251,6 @@ public abstract class SocketSession
         }
         return null;
     }
-    public void SendPacket(Packet packet, TimeSpan? timeout = null)
-    {
-        var temp = _socket.SendTimeout;
-        if (timeout != null)
-            _socket.SendTimeout = (int)timeout.Value.TotalMilliseconds;
-
-        Write(packet.GetBytes());
-        _socket.SendTimeout = temp;
-
-    }
-    public Packet? ReceivePacket(TimeSpan? timeout = null)
-    {
-        var temp = _socket.ReceiveTimeout;
-        if (timeout != null)
-            _socket.ReceiveTimeout = (int)timeout.Value.TotalMilliseconds;
-        var packet = ReadPacket();
-        _socket.ReceiveTimeout = temp;
-        return packet;
-    }
-    public bool Connect(string ip, int port)
-    {
-        try
-        {
-            _ip = ip;
-            _port = port;
-            _socket.Connect(IPAddress.Parse(ip), port);
-            _connected = true;
-            _conn.Set();
-            OnConnected(_socket);
-            return true;
-        }
-        catch (Exception e)
-        {
-            Log.Error(e.Message);
-            Log.Error(e.StackTrace);
-            return false;
-        }
-    }
-    public bool Reconnect()
-    {
-        _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-        return Connect(_ip, _port);
-    }
-    protected virtual void OnConnected(Socket socket) { }
     private object? ConvertPacket(int dataType, byte[] data)
     {
         ConstructorInfo constructor = null;
@@ -246,10 +274,8 @@ public abstract class SocketSession
 
         return null;
     }
-    public void Disconnect()
+    ~SocketSession() 
     {
-        _connected = false;
-        _conn.Reset();
-        _socket.Close();
+        Disconnect();
     }
 }

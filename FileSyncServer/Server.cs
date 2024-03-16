@@ -23,7 +23,7 @@ namespace FileSyncServer
         private byte _encryptKey;
         private string _password;
         private int _daysBefore;
-        private const int AuthenticateTimeout = 3;
+        private const int AuthenticateTimeout = 5;
         public Server(int port, string folder, bool encrypt, byte encryptKey, string password, int daysBefore)
         {
             _port = port;
@@ -50,7 +50,7 @@ namespace FileSyncServer
 
                     var clientId = _sessions.Count;
                     var session = new ServerSession(clientId, _folder, _daysBefore, client, _encrypt, _encryptKey);
-                    var packet = session.ReceivePacket(TimeSpan.FromSeconds(AuthenticateTimeout));
+                    var packet = session.SocketSession.ReceivePacket(TimeSpan.FromSeconds(AuthenticateTimeout));
                     if (packet != null)
                     {
                         if (packet.DataType == PacketType.AuthenticateRequest)
@@ -59,12 +59,12 @@ namespace FileSyncServer
                             if (request.Password == _password)
                             {
                                 Log.Information("验证成功");
-                                client.IOControl(IOControlCode.KeepAliveValues, KeepAlive(1, 3000, 1000), null);//设置Keep-Alive参数
-                                session.SendPacket(new PacketAuthenticateResponse(clientId, request.RequestId, true));
-                                session.StartMessageLoop();
+                                client.IOControl(IOControlCode.KeepAliveValues, KeepAlive(1, 3000, 2000), null);//设置Keep-Alive参数
+                                session.SocketSession.SendPacket(new PacketAuthenticateResponse(clientId, request.RequestId, true));
+                                session.SocketSession.StartMessageLoop();
                                 if (_sessions.TryAdd(clientId, session))
                                 {
-                                    session.SendPacket(new PacketHandshake(clientId));
+                                    session.SocketSession.SendPacket(new PacketHandshake(clientId));
                                 }
                                 continue;
                             }
@@ -72,10 +72,10 @@ namespace FileSyncServer
                     }
 
                     Log.Error("验证失败");
-                    session.SendPacket(new PacketAuthenticateResponse(clientId, 0, false));
+                    session.SocketSession.SendPacket(new PacketAuthenticateResponse(clientId, 0, false));
                     _ = new Timer((e) =>
                     {
-                        session.Disconnect();
+                        session.SocketSession.Disconnect();
                     }, null, TimeSpan.FromSeconds(AuthenticateTimeout), Timeout.InfiniteTimeSpan);//超时关闭验证失败连接,定时是为了发送结果出去
                 }
             });

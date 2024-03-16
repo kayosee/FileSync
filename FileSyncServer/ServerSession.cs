@@ -9,21 +9,26 @@ using System.Threading.Tasks;
 
 namespace FileSyncServer
 {
-    public class ServerSession : SocketSession
+    public class ServerSession
     {
         private string _folder;
         private int _id;
         private bool _disconnected;
         private int _daysBefore;
         private int _total;
-        public ServerSession(int id, string folder, int daysBefore, Socket socket, bool encrypt, byte encryptKey) : base(id, socket, encrypt, encryptKey)
+        private SocketSession _session;
+        public SocketSession SocketSession { get { return _session; } }
+        public ServerSession(int id, string folder, int daysBefore, Socket socket, bool encrypt, byte encryptKey) 
         {
             _id = id;
             _folder = folder;
             _daysBefore = daysBefore;
+            _session = new SocketSession(id, socket, encrypt, encryptKey);
+            _session.OnSocketError += OnSocketError;
+            _session.OnReceivePackage += OnReceivePackage;
         }
 
-        protected override void OnReceivePackage(Packet packet)
+        protected void OnReceivePackage(Packet packet)
         {
             if (packet != null)
             {
@@ -72,7 +77,7 @@ namespace FileSyncServer
                 }
             }
             var response = new PacketFileContentInfoResponse(packet.ClientId, packet.RequestId, lastPos, checksum, totalCount, totalSize, packet.Path);
-            SendPacket(response);
+            _session.SendPacket(response);
         }
 
         private void DoFileContentDetailRequest(PacketFileContentDetailRequest packet)
@@ -83,7 +88,7 @@ namespace FileSyncServer
                 var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
                 var fileInfo = new FileInfo(localPath);
                 if (!fileInfo.Exists)
-                    SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileDeleted, packet.Path));
+                    _session.SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileDeleted, packet.Path));
                 else
                 {
                     using (var stream = File.OpenRead(localPath))
@@ -91,14 +96,14 @@ namespace FileSyncServer
                         if (packet.StartPos > stream.Length)
                         {
                             Log.Error($"请求的位置{packet.StartPos}超出该文件'{localPath}'的大小{stream.Length}");
-                            SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
+                            _session.SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
                         }
                         if (stream.Length == 0)
                         {
                             var lastWriteTime = fileInfo.LastWriteTime.Ticks;
                             var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Empty, packet.Path);
                             response.LastWriteTime = lastWriteTime;
-                            SendPacket(response);
+                            _session.SendPacket(response);
                         }
                         else
                         {
@@ -112,7 +117,7 @@ namespace FileSyncServer
                             response.FileData = buffer.Take(response.FileDataLength).ToArray();
                             response.FileDataTotal = stream.Length;
                             response.LastWriteTime = lastWriteTime;
-                            SendPacket(response);
+                            _session.SendPacket(response);
                         }
                     }
                 }
@@ -120,7 +125,7 @@ namespace FileSyncServer
             catch (Exception ex)
             {
                 Log.Error(ex.ToString());
-                SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
+                _session.SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
             }
         }
         private void DoFileListRequest(PacketFileListRequest packet)
@@ -132,20 +137,21 @@ namespace FileSyncServer
             GetFiles(packet.ClientId, packet.RequestId, new DirectoryInfo(path), DateTime.Now.AddDays(0 - _daysBefore), ref output);
 
             var fileListInfoResponse = new PacketFileListInfoResponse(packet.ClientId, packet.RequestId, output.LongCount(), output.Sum(f => f.FileLength));
-            SendPacket(fileListInfoResponse);
+            _session.SendPacket(fileListInfoResponse);
 
             foreach (var file in output)
             {
                 file.Path = file.Path.Replace(_folder, "");
-                SendPacket(file);
+                _session.SendPacket(file);
             }
         }
 
-        protected override void OnSocketError(int id, Exception e)
+        protected void OnSocketError(int id, Exception e)
         {
-            if (!IsConnected)
+            if (!_session.Socket.Connected)
             {
                 Log.Information($"客户ID（{id}）已经断开连接");
+                _session.Disconnect();
             }
         }
 

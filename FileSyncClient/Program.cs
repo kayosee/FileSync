@@ -1,4 +1,5 @@
-﻿using Serilog;
+﻿using FileSyncCommon;
+using Serilog;
 using System.Configuration;
 
 namespace FileSyncClient

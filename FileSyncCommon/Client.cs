@@ -13,34 +13,54 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FileSyncClient
+namespace FileSyncCommon
 {
-    public class Client : SocketSession
+    public class Client 
     {
+        private string _host;
+        private int _port;
         private int _clientId;
         private string _folder;
         private int _interval;
-        private int _port;
         private bool _encrypt;
         private byte _encryptKey;
         private string _password;
         private Timer _timer;
         private RequestCounter<long> _request = new RequestCounter<long>();
-        public Client(string ip, int port, string folder, int interval, bool encrypt, byte encryptKey, string password) : base(0, new Socket(SocketType.Stream, ProtocolType.Tcp), encrypt, encryptKey)
+        private SocketSession _session;
+        private Socket _socket;
+        public string Host { get => _host; set => _host = value; }
+        public int Port { get => _port; set => _port = value; }
+        public int ClientId { get => _clientId; set => _clientId = value; }
+        public string Folder { get => _folder; set => _folder = value; }
+        public int Interval { get => _interval; set => _interval = value; }
+        public string Password { get => _password; set => _password = value; }
+        public bool IsConnected
+        {
+            get
+            {
+                return _socket != null && _socket.Connected;
+            }
+        }
+        public bool IsRunning { get { return _session != null && _session.IsRunning; } }
+        public bool Encrypt { get => _encrypt; set => _encrypt = value; }
+        public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
+
+        public Client()
+        {
+            _interval = 1;
+            _folder = Environment.CurrentDirectory;
+            _host = "127.0.0.1";
+            _port = 2121;
+        }
+        public Client(string host, int port, string folder, int interval) 
         {
             _folder = folder;
             _interval = interval;
+            _host = host;
             _port = port;
-            _encrypt = encrypt;
-            _encryptKey = encryptKey;
-            _password = password;
-            if (Connect(ip, port))
-            {
-                Log.Information($"已连接到服务器:{ip}:{port}");
-                StartMessageLoop();
-            }
         }
-        protected override void OnReceivePackage(Packet packet)
+        private void OnReceivePackage(Packet packet)
         {
             if (packet != null)
             {
@@ -72,7 +92,7 @@ namespace FileSyncClient
             if(!packet.OK)
             {
                 Log.Error("验证失败，连接断开");
-                base.StopMessageLoop();
+                _session.StopMessageLoop();
             }
             else
             {
@@ -87,7 +107,7 @@ namespace FileSyncClient
             _request.Increase(response.RequestId, packet.TotalCount);
             _request.Decrease(packet.RequestId);
 
-            SendPacket(response);
+            _session.SendPacket(response);
         }
         private void DoFileListInfoResponse(PacketFileListInfoResponse packet)
         {
@@ -127,7 +147,7 @@ namespace FileSyncClient
                             else //写入位置信息
                             {
                                 FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, fileResponse.Pos + fileResponse.FileDataLength);
-                                SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
+                                _session.SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
                                 _request.Decrease(fileResponse.RequestId);
                             }
                         }
@@ -135,7 +155,7 @@ namespace FileSyncClient
                         {
                             Log.Error(e.Message);
                             Log.Error(e.StackTrace);
-                            SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path));
+                            _session.SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path));
                         }
                         break;
                     }
@@ -164,20 +184,20 @@ namespace FileSyncClient
                         var pos = FileOperator.GetLastPosition(file + ".sync");
                         request.Checksum = FileOperator.GetCrc32(file + ".sync", pos);
                         request.LastPos = pos;
-                        SendPacket(request);
+                        _session.SendPacket(request);
                         _request.Increase(request.RequestId);
                         Log.Information($"正在检验续传文件:{fileInformation.Path}");
                     }
                     catch (Exception ex)
                     {
-                        SendPacket(request);
+                        _session.SendPacket(request);
                         _request.Increase(request.RequestId);
                         Log.Information($"文件校验失败:{fileInformation.Path}，重新下载。");
                     }
                 }
                 else
                 {
-                    SendPacket(request);
+                    _session.SendPacket(request);
                     _request.Increase(request.RequestId);
                     Log.Information($"文件不存在:{fileInformation.Path}，发起下载。");
                 }
@@ -203,7 +223,7 @@ namespace FileSyncClient
                 }
                 else
                 {
-                    SendPacket(request);
+                    _session.SendPacket(request);
                     _request.Increase(request.RequestId);
                     Log.Information($"{fileInformation.Path}文件不一致，需要更新");
                 }
@@ -221,24 +241,59 @@ namespace FileSyncClient
                     {
                         var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _folder);
                         _request.Increase(packet.RequestId, 0);
-                        SendPacket(packet);
+                        _session.SendPacket(packet);
                     }
                 });
                 _timer.Change(TimeSpan.FromMinutes(_interval), TimeSpan.FromMinutes(_interval));
             }
         }
-        protected override void OnSocketError(int id, Exception e)
+        protected void OnSocketError(int id, Exception e)
         {
-            while (!IsConnected)
+            while (!_socket.Connected)
             {
-                Reconnect();
+                Connect(_host, _port, _encrypt, _encryptKey, _password);
             }
             _request.Clear();
         }
-        protected override void OnConnected(Socket socket)
+        protected void OnConnected()
         {
+            _session = new SocketSession(_clientId, _socket, _encrypt, _encryptKey);
+            _session.OnReceivePackage += OnReceivePackage;
+            _session.OnSocketError += OnSocketError;
+            _session.StartMessageLoop();
             var packet = new PacketAuthenticateRequest(0, 0, _password);
-            SendPacket(packet);
+            _session.SendPacket(packet);
+        }
+        public bool Connect()
+        {
+            return Connect(_host, _port, _encrypt, _encryptKey, _password);
+        }
+        public bool Connect(string host, int port, bool encrypt, byte encryptKey, string password)
+        {
+            try
+            {
+                _host = host;
+                _port = port;
+                _encrypt = encrypt;
+                _encryptKey = encryptKey;
+                _password = password;
+                _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+                _socket.Connect(IPAddress.Parse(host), port);
+                OnConnected();
+                return true;
+            }
+            catch (Exception e)
+            {
+                Log.Error(e.Message);
+                Log.Error(e.StackTrace);
+                return false;
+            }
+        }
+        public void Disconnect()
+        {
+            if(IsConnected) {
+                _session.Disconnect();
+            }
         }
     }
 }
