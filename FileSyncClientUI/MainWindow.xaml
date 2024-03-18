@@ -3,31 +3,72 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:system="clr-namespace:System;assembly=mscorlib"
         xmlns:dxlc="http://schemas.devexpress.com/winfx/2008/xaml/layoutcontrol"
-        xmlns:local="clr-namespace:FileSyncClientUI" 
         xmlns:uicommon="clr-namespace:UICommon;assembly=UICommon" 
-        xmlns:dx="http://schemas.devexpress.com/winfx/2008/xaml/core" 
-        xmlns:dxe="http://schemas.devexpress.com/winfx/2008/xaml/editors"
+        xmlns:dx="http://schemas.devexpress.com/winfx/2008/xaml/core"
+        xmlns:dxe="http://schemas.devexpress.com/winfx/2008/xaml/editors" xmlns:local="clr-namespace:FileSyncClientUI" xmlns:dxmvvm="http://schemas.devexpress.com/winfx/2008/xaml/mvvm"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="MainWindow" Height="450" Width="600">
     <Window.DataContext>
         <local:MainWindowViewModel />
     </Window.DataContext>
     <Window.Resources>
         <uicommon:InvertBoolValueConverter x:Key="InvertBoolValueConverter1"></uicommon:InvertBoolValueConverter>
     </Window.Resources>
+    <dxmvvm:Interaction.Behaviors>
+        <dx:DXMessageBoxService/>
+        <dxmvvm:NotificationService>
+
+        </dxmvvm:NotificationService>
+    </dxmvvm:Interaction.Behaviors>
     <dx:DXTabControl ItemsSource="{Binding Path=Clients}">
-        <dx:DXTabControl.ItemTemplate>
+        <dx:DXTabControl.View>
+            <dx:TabControlMultiLineView HeaderLocation="Top" NewButtonShowMode="InTabPanel" NewTabCommand="{Binding Path=NewClient}" />
+        </dx:DXTabControl.View>
+    <dx:DXTabControl.ItemTemplate>
             <DataTemplate>
-                <dxlc:LayoutControl>
-                    <dxlc:LayoutGroup>
+                <dxlc:LayoutControl Orientation="Vertical">
+                    <dxlc:LayoutGroup Orientation="Horizontal">
                         <dxlc:LayoutItem Label="服务器">
+                            <dxe:TextEdit EditValue="{Binding Path=Host,Mode=TwoWay}"></dxe:TextEdit>
+                        </dxlc:LayoutItem>
+                        <dxlc:LayoutItem Label="端口">
+                            <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Port,Mode=TwoWay}" MinValue="1" MaxValue="65535"></dxe:SpinEdit>
+                        </dxlc:LayoutItem>
+                    </dxlc:LayoutGroup>
+                    <dxlc:LayoutGroup>
+                        <dxlc:DataLayoutItem Label="本地目录">
+                            <dxe:ButtonEdit/>
+                        </dxlc:DataLayoutItem>
+                        <dxlc:LayoutItem Label="远程目录">
                             <dxe:TextEdit></dxe:TextEdit>
                         </dxlc:LayoutItem>
                     </dxlc:LayoutGroup>
+                    <dxlc:LayoutGroup Orientation="Horizontal">
+                        <dxlc:LayoutItem Label="是否加密">
+                            <dxe:CheckEdit EditValue="{Binding Path=Encrypt,Mode=TwoWay}"></dxe:CheckEdit>
+                        </dxlc:LayoutItem>
+                        <dxlc:LayoutItem Label="加密密钥">
+                            <dxe:TextEdit EditValue="{Binding Path=EncryptKey,Mode=TwoWay}"></dxe:TextEdit>
+                        </dxlc:LayoutItem>
+                    </dxlc:LayoutGroup>
+                    <dxlc:LayoutGroup Orientation="Horizontal">
+                        <dxlc:LayoutItem Label="验证码">
+                            <dxe:TextEdit EditValue="{Binding Path=Password,Mode=TwoWay}"></dxe:TextEdit>
+                        </dxlc:LayoutItem>
+                        <dxlc:LayoutItem Label="同步间隔(分钟)">
+                            <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Interval,Mode=TwoWay}" MinValue="1"></dxe:SpinEdit>
+                        </dxlc:LayoutItem>
+                    </dxlc:LayoutGroup>
+
                 </dxlc:LayoutControl>
             </DataTemplate>
-           
         </dx:DXTabControl.ItemTemplate>
+        <dx:DXTabControl.ItemHeaderTemplate>
+            <DataTemplate>
+                <TextBlock Text="{Binding Path=Name}"></TextBlock>
+            </DataTemplate>
+        </dx:DXTabControl.ItemHeaderTemplate>
     </dx:DXTabControl>
 </Window>

@@ -18,11 +18,22 @@ namespace FileSyncClientUI
         public MainWindowViewModel()
         {
             Clients = new ObservableCollection<ClientModelView>();
+            Clients.Add(new ClientModelView() { Name = "新建" });
         }
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string name = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+        public ICommand NewClient
+        {
+            get
+            {
+                return new SimpleCommand(f => true, f =>
+                {
+                    Clients.Add(new ClientModelView() { Name = "新建" });
+                });
+            }
         }
     }
 }

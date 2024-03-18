@@ -13,6 +13,10 @@ namespace FileSyncClientUI
 {
     public class ClientModelView : Client, INotifyPropertyChanged
     {
+        private string _name;
+        public string Name { get { return _name; } set { _name = value; OnPropertyChanged(nameof(Name)); } }
+        private string host;
+
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string name = null)
         {
@@ -45,6 +49,14 @@ namespace FileSyncClientUI
                         }
                     }
                 });
+            }
+        }
+        public new string Host
+        {
+            get => host; set
+            {
+                host = value;
+                OnPropertyChanged(nameof(Host));
             }
         }
     }
