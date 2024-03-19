@@ -20,5 +20,6 @@ namespace FileSyncClientUI
         {
             InitializeComponent();
         }
+
     }
 }

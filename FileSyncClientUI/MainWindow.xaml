@@ -9,7 +9,7 @@
         xmlns:dx="http://schemas.devexpress.com/winfx/2008/xaml/core"
         xmlns:dxe="http://schemas.devexpress.com/winfx/2008/xaml/editors" xmlns:local="clr-namespace:FileSyncClientUI" xmlns:dxmvvm="http://schemas.devexpress.com/winfx/2008/xaml/mvvm"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="600">
+        Title="备份客户端" Height="450" Width="600">
     <Window.DataContext>
         <local:MainWindowViewModel />
     </Window.DataContext>
@@ -26,43 +26,76 @@
         <dx:DXTabControl.View>
             <dx:TabControlMultiLineView HeaderLocation="Top" NewButtonShowMode="InTabPanel" NewTabCommand="{Binding Path=NewClient}" />
         </dx:DXTabControl.View>
-    <dx:DXTabControl.ItemTemplate>
+        <dx:DXTabControl.ItemTemplate>
             <DataTemplate>
-                <dxlc:LayoutControl Orientation="Vertical">
-                    <dxlc:LayoutGroup Orientation="Horizontal">
-                        <dxlc:LayoutItem Label="服务器">
-                            <dxe:TextEdit EditValue="{Binding Path=Host,Mode=TwoWay}"></dxe:TextEdit>
-                        </dxlc:LayoutItem>
-                        <dxlc:LayoutItem Label="端口">
-                            <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Port,Mode=TwoWay}" MinValue="1" MaxValue="65535"></dxe:SpinEdit>
-                        </dxlc:LayoutItem>
-                    </dxlc:LayoutGroup>
-                    <dxlc:LayoutGroup>
-                        <dxlc:DataLayoutItem Label="本地目录">
-                            <dxe:ButtonEdit/>
-                        </dxlc:DataLayoutItem>
-                        <dxlc:LayoutItem Label="远程目录">
-                            <dxe:TextEdit></dxe:TextEdit>
-                        </dxlc:LayoutItem>
-                    </dxlc:LayoutGroup>
-                    <dxlc:LayoutGroup Orientation="Horizontal">
-                        <dxlc:LayoutItem Label="是否加密">
-                            <dxe:CheckEdit EditValue="{Binding Path=Encrypt,Mode=TwoWay}"></dxe:CheckEdit>
-                        </dxlc:LayoutItem>
-                        <dxlc:LayoutItem Label="加密密钥">
-                            <dxe:TextEdit EditValue="{Binding Path=EncryptKey,Mode=TwoWay}"></dxe:TextEdit>
-                        </dxlc:LayoutItem>
-                    </dxlc:LayoutGroup>
-                    <dxlc:LayoutGroup Orientation="Horizontal">
-                        <dxlc:LayoutItem Label="验证码">
-                            <dxe:TextEdit EditValue="{Binding Path=Password,Mode=TwoWay}"></dxe:TextEdit>
-                        </dxlc:LayoutItem>
-                        <dxlc:LayoutItem Label="同步间隔(分钟)">
-                            <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Interval,Mode=TwoWay}" MinValue="1"></dxe:SpinEdit>
-                        </dxlc:LayoutItem>
-                    </dxlc:LayoutGroup>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <dxlc:LayoutControl Grid.Row="0" Orientation="Vertical" IsEnabled="{Binding Path=IsConnected,Converter={StaticResource InvertBoolValueConverter1}}">
+                        <dxlc:LayoutGroup>
+                            <dxlc:LayoutItem Label="名称">
+                                <dxe:TextEdit EditValue="{Binding Path=Name,Mode=TwoWay}"></dxe:TextEdit>
+                            </dxlc:LayoutItem>
+                        </dxlc:LayoutGroup>
+                        <dxlc:LayoutGroup Orientation="Horizontal">
+                            <dxlc:LayoutItem Label="服务器">
+                                <dxe:TextEdit EditValue="{Binding Path=Host,Mode=TwoWay}"></dxe:TextEdit>
+                            </dxlc:LayoutItem>
+                            <dxlc:LayoutItem Label="端口">
+                                <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Port,Mode=TwoWay}" MinValue="1" MaxValue="65535"></dxe:SpinEdit>
+                            </dxlc:LayoutItem>
+                        </dxlc:LayoutGroup>
+                        <dxlc:LayoutGroup>
+                            <dxlc:DataLayoutItem Label="本地目录">
+                                <dxe:ButtonEdit EditValue="{Binding Path=LocalFolder,Mode=TwoWay}" AllowDefaultButton="False">
+                                    <dxe:ButtonEdit.Buttons>
+                                        <dxe:ButtonInfo Content="选择目录" Command="{Binding SelectLocalFolder}"></dxe:ButtonInfo>
+                                    </dxe:ButtonEdit.Buttons>
+                                </dxe:ButtonEdit>
+                            </dxlc:DataLayoutItem>
+                            <dxlc:LayoutItem Label="远程目录">
+                                <dxe:ButtonEdit EditValue="{Binding Path=RemoteFolder,Mode=TwoWay}"/>
+                            </dxlc:LayoutItem>
+                        </dxlc:LayoutGroup>
+                        <dxlc:LayoutGroup Orientation="Horizontal">
+                            <dxlc:LayoutItem Label="是否加密">
+                                <dxe:CheckEdit EditValue="{Binding Path=Encrypt,Mode=TwoWay}"></dxe:CheckEdit>
+                            </dxlc:LayoutItem>
+                            <dxlc:LayoutItem Label="加密密钥">
+                                <dxe:TextEdit EditValue="{Binding Path=EncryptKey,Mode=TwoWay}"></dxe:TextEdit>
+                            </dxlc:LayoutItem>
+                        </dxlc:LayoutGroup>
+                        <dxlc:LayoutGroup Orientation="Horizontal">
+                            <dxlc:LayoutItem Label="验证码">
+                                <dxe:TextEdit EditValue="{Binding Path=Password,Mode=TwoWay}"></dxe:TextEdit>
+                            </dxlc:LayoutItem>
+                            <dxlc:LayoutItem Label="同步间隔(分钟)">
+                                <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Interval,Mode=TwoWay}" MinValue="1"></dxe:SpinEdit>
+                            </dxlc:LayoutItem>
+                        </dxlc:LayoutGroup>
+                    </dxlc:LayoutControl>
 
-                </dxlc:LayoutControl>
+                    <dxlc:LayoutControl Grid.Row="1">
+                        <dxlc:LayoutGroup>
+                            <dxlc:LayoutItem>
+                                <dx:SimpleButton Content="启动" Command="{Binding Path=Start}" IsEnabled="{Binding Path=IsConnected,Converter={StaticResource InvertBoolValueConverter1}}"></dx:SimpleButton>
+                            </dxlc:LayoutItem>
+                            <dxlc:DataLayoutItem>
+                                <dx:SimpleButton Content="停止" Command="{Binding Path=Stop}" IsEnabled="{Binding Path=IsConnected}"></dx:SimpleButton>
+                            </dxlc:DataLayoutItem>
+                        </dxlc:LayoutGroup>
+                    </dxlc:LayoutControl>
+                    <dxlc:LayoutControl Grid.Row="2">
+                        <dxlc:LayoutGroup>
+                            <dxlc:LayoutItem Label="日志" VerticalAlignment="Stretch" LabelPosition="Top" LabelHorizontalAlignment="Center">
+                                <ListBox ItemsSource="{Binding Path=Logs}"></ListBox>
+                            </dxlc:LayoutItem>
+                        </dxlc:LayoutGroup>
+                    </dxlc:LayoutControl>
+                </Grid>
             </DataTemplate>
         </dx:DXTabControl.ItemTemplate>
         <dx:DXTabControl.ItemHeaderTemplate>

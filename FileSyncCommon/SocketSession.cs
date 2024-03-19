@@ -1,50 +1,45 @@
 ﻿using Force.Crc32;
-using Serilog;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace FileSyncCommon;
 
 public sealed class SocketSession
 {
-    private int _id;
     private bool _encrypt;
     private byte _encryptKey;
     private Thread _producer;
     private Thread _consumer;
     private Socket _socket;
-    private ConcurrentDictionary<int, ConstructorInfo> _constructors;
-    private volatile Boolean _disposed;
+    private Signal _running;
     private Semaphore _pushSemaphore;
     private Semaphore _pullSemaphore;
-    private Signal _running;
+    private volatile Boolean _disposed;
     private ConcurrentQueue<Packet> _packetQueue;
-
+    private ConcurrentDictionary<int, ConstructorInfo> _constructors;
     public bool IsRunning
     {
         get
         {
-            return _running.State;
+            return !_disposed && _running.State;
         }
     }
     public bool Encrypt { get => _encrypt; set => _encrypt = value; }
-    public int Id { get => _id; set => _id = value; }
     public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
     public Socket Socket { get => _socket; set => _socket = value; }
-    public delegate void ReceivePackage(Packet packet);
-    public delegate void SocketError(int id, Exception e);
-    public ReceivePackage OnReceivePackage { get; set; }
-    public SocketError OnSocketError { get; set; }
-    public void Initialize()
+    public delegate void ReceivePackageHandler(Packet packet);
+    public delegate void SocketErrorHandler(SocketSession socketSession, Exception e);
+    public delegate void DataErrorHandler(SocketSession socketSession, string message);
+    public event ReceivePackageHandler? OnReceivePackage;
+    public event SocketErrorHandler? OnSocketError;
+    public event DataErrorHandler? OnDataError;
+    public SocketSession(Socket socket, bool encrypt, byte encryptKey)
     {
+        _socket = socket;
+        _encrypt = encrypt;
+        _encryptKey = encryptKey;
+
         _disposed = false;
         _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
         _packetQueue = new ConcurrentQueue<Packet>();
@@ -55,14 +50,14 @@ public sealed class SocketSession
         {
             while (_running.Wait())
             {
-                if(_disposed) 
+                if (_disposed)
                     break;
 
                 var packet = ReadPacket();
                 if (packet != null && _pushSemaphore.WaitOne())
                 {
-                    _packetQueue.Enqueue(packet);
                     _pullSemaphore.Release();
+                    _packetQueue.Enqueue(packet);
                 }
             }
         });
@@ -88,14 +83,6 @@ public sealed class SocketSession
         _consumer.Start();
 
     }
-    public SocketSession(int id, Socket socket, bool encrypt, byte encryptKey)
-    {
-        Initialize();
-        _id = id;
-        _socket = socket; 
-        _encrypt = encrypt;
-        _encryptKey = encryptKey;
-    }
     public void StartMessageLoop()
     {
         _running.Promitted();
@@ -107,13 +94,12 @@ public sealed class SocketSession
     public void Disconnect()
     {
         try
-        {
+        {            
             _disposed = true;
             _socket.Close();
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-
         }
     }
     public void SendPacket(Packet packet, TimeSpan? timeout = null)
@@ -134,7 +120,7 @@ public sealed class SocketSession
                 return;
 
             if (OnSocketError != null)
-                OnSocketError(_id, e);
+                OnSocketError(this, e);
         }
     }
     public Packet? ReceivePacket(TimeSpan? timeout = null)
@@ -151,7 +137,7 @@ public sealed class SocketSession
         catch (Exception e)
         {
             if (!_disposed && OnSocketError != null)
-                OnSocketError(_id, e);
+                OnSocketError(this, e);
             return null;
         }
     }
@@ -172,17 +158,17 @@ public sealed class SocketSession
             }
             return true;
         }
-        catch (SocketException e)
+        catch (Exception e)
         {
             if (!_disposed && OnSocketError != null)
-                OnSocketError(_id, e);
+                OnSocketError(this, e);
             return false;
         }
     }
-    private bool ReadAppend(int length, out byte[] buffer,ref List<byte> appender)
+    private bool ReadAppend(int length, out byte[] buffer, ref List<byte> appender)
     {
         var ok = (Read(length, out buffer));
-        if(ok)
+        if (ok)
             appender.AddRange(buffer);
         return ok;
     }
@@ -198,13 +184,13 @@ public sealed class SocketSession
             int sent = _socket.Send(buffer);
             return sent;
         }
-        catch (SocketException e)
+        catch (Exception e)
         {
             if (_disposed)
                 return 0;
 
             if (OnSocketError != null)
-                OnSocketError(_id, e);
+                OnSocketError(this, e);
             return 0;
         }
     }
@@ -212,13 +198,14 @@ public sealed class SocketSession
     {
         var whole = new List<byte>();
 
-        if (!ReadAppend(1, out var buffer,ref whole))
+        if (!ReadAppend(1, out var buffer, ref whole))
             return null;
 
         byte dataType = buffer[0];
         if (!Enum.IsDefined(typeof(PacketType), (int)dataType))
         {
-            Log.Error("数据错误，无效数据包类型: " + BitConverter.ToString(buffer));
+            if (OnDataError != null)
+                OnDataError.Invoke(this, "数据错误，无效数据包类型: " + BitConverter.ToString(buffer));
             return null;
         }
 
@@ -240,7 +227,8 @@ public sealed class SocketSession
 
         if (!Crc32Algorithm.IsValidWithCrcAtEnd(whole.ToArray()))
         {
-            Log.Error("Crc检验出错");
+            if (OnDataError != null)
+                OnDataError.Invoke(this, "Crc检验出错");
             return null;
         }
 
@@ -274,7 +262,7 @@ public sealed class SocketSession
 
         return null;
     }
-    ~SocketSession() 
+    ~SocketSession()
     {
         Disconnect();
     }

@@ -1,12 +1,10 @@
-﻿using FileSyncCommon;
-using System;
-using System.Collections.Generic;
+﻿using DevExpress.Mvvm.Native;
+using FileSyncCommon;
+using Newtonsoft.Json;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
+using System.IO;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Input;
 using UICommon;
 
@@ -18,7 +16,21 @@ namespace FileSyncClientUI
         public MainWindowViewModel()
         {
             Clients = new ObservableCollection<ClientModelView>();
-            Clients.Add(new ClientModelView() { Name = "新建" });
+            var config = System.IO.Path.Combine(Environment.CurrentDirectory, "config.json");
+            if (File.Exists(config))
+            {
+                try
+                {
+                    var data = JsonConvert.DeserializeObject<ClientModelView[]>(File.ReadAllText(config));
+                    if (data != null)
+                    {
+                        data.ForEach<ClientModelView>(f => f.PropertyChanged += ClientPropertyChanged);
+                        Clients = new ObservableCollection<ClientModelView>(data);
+                        OnPropertyChanged(nameof(Clients));
+                    }
+                }
+                catch (Exception e) { }
+            }
         }
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string name = null)
@@ -31,9 +43,18 @@ namespace FileSyncClientUI
             {
                 return new SimpleCommand(f => true, f =>
                 {
-                    Clients.Add(new ClientModelView() { Name = "新建" });
+                    var client = new ClientModelView() { Name = "新建" };
+                    client.PropertyChanged += ClientPropertyChanged;
+                    Clients.Add(client);
                 });
             }
+        }
+
+        private void ClientPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            var config = System.IO.Path.Combine(Environment.CurrentDirectory, "config.json");
+            var data = JsonConvert.SerializeObject(Clients);
+            File.WriteAllText(config, data);
         }
     }
 }

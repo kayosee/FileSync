@@ -23,7 +23,7 @@ namespace FileSyncServer
             _id = id;
             _folder = folder;
             _daysBefore = daysBefore;
-            _session = new SocketSession(id, socket, encrypt, encryptKey);
+            _session = new SocketSession(socket, encrypt, encryptKey);
             _session.OnSocketError += OnSocketError;
             _session.OnReceivePackage += OnReceivePackage;
         }
@@ -143,11 +143,11 @@ namespace FileSyncServer
                 _session.SendPacket(file);
             }
         }
-        protected void OnSocketError(int id, Exception e)
+        protected void OnSocketError(SocketSession socketSession, Exception e)
         {
             if (!_session.Socket.Connected)
             {
-                Log.Information($"客户ID（{id}）已经断开连接");
+                Log.Information($"客户ID（{_id}）已经断开连接");
                 _session.Disconnect();
             }
         }

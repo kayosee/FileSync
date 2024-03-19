@@ -1,6 +1,8 @@
 ﻿using FileSyncCommon;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -12,16 +14,42 @@ using UICommon;
 namespace FileSyncClientUI
 {
     public class ClientModelView : Client, INotifyPropertyChanged
-    {
+    {      
         private string _name;
+        private ObservableCollection<string> _logs;
+        [JsonProperty]
         public string Name { get { return _name; } set { _name = value; OnPropertyChanged(nameof(Name)); } }
-        private string host;
-
         public event PropertyChangedEventHandler? PropertyChanged;
+        public ClientModelView()
+        {
+            _logs = new ObservableCollection<string>();
+            OnError += OnLogError;
+            OnInformation += OnLogInformation;
+        }
+
+        private void OnLogInformation(string message)
+        {
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                _logs.Add(message);
+                OnPropertyChanged(nameof(Logs));
+            });
+        }
+
+        private void OnLogError(string message, Exception e)
+        {
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                _logs.Add(message);
+                OnPropertyChanged(nameof(Logs));
+            });
+        }
+
         protected void OnPropertyChanged([CallerMemberName] string name = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
         }
+        [JsonIgnore]
         public ICommand Stop
         {
             get
@@ -34,6 +62,7 @@ namespace FileSyncClientUI
                 });
             }
         }
+        [JsonIgnore]
         public ICommand Start
         {
             get
@@ -51,12 +80,98 @@ namespace FileSyncClientUI
                 });
             }
         }
+        [JsonProperty]
         public new string Host
         {
-            get => host; set
+            get => base.Host; set
             {
-                host = value;
+                base.Host = value;
                 OnPropertyChanged(nameof(Host));
+            }
+        }
+        [JsonProperty]
+        public new int Port
+        {
+            get => base.Port; set
+            {
+                base.Port = value;
+                OnPropertyChanged(nameof(Port));
+            }
+        }
+        [JsonProperty]
+        public new string LocalFolder
+        {
+            get => base.LocalFolder;
+            set
+            {
+                base.LocalFolder = value;
+                OnPropertyChanged(nameof(LocalFolder));
+            }
+        }
+        [JsonProperty]
+        public new string RemoteFolder
+        {
+            get => base.RemoteFolder;
+            set
+            {
+                base.RemoteFolder = value;
+                OnPropertyChanged(nameof(RemoteFolder));
+            }
+        }
+        [JsonProperty]
+        public new bool Encrypt
+        {
+            get => base.Encrypt;
+            set
+            {
+                base.Encrypt = value;
+                OnPropertyChanged(nameof(Encrypt));
+            }
+        }
+        [JsonProperty]
+        public new byte EncryptKey
+        {
+            get => base.EncryptKey;
+            set
+            {
+                base.EncryptKey = value;
+                OnPropertyChanged(nameof(EncryptKey));
+            }
+        }
+        [JsonProperty]
+        public new string Password
+        {
+            get => base.Password;
+            set
+            {
+                base.Password = value;
+                OnPropertyChanged(nameof(Password));
+            }
+        }
+        [JsonProperty]
+        public new int Interval
+        {
+            get => base.Interval;
+            set
+            {
+                base.Interval = value;
+                OnPropertyChanged(nameof(Interval));
+            }
+        }
+        [JsonIgnore]
+        public ObservableCollection<string> Logs { get => _logs; set => _logs = value; }
+
+        [JsonIgnore]
+        public ICommand SelectLocalFolder
+        {
+            get
+            {
+                return new SimpleCommand(f => true, f =>
+                {
+                    FolderBrowserDialog dialog = new FolderBrowserDialog();
+                    if (dialog.ShowDialog() == DialogResult.OK)
+                        LocalFolder = dialog.SelectedPath;
+                });
             }
         }
     }

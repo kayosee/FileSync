@@ -1,10 +1,9 @@
-﻿using Serilog;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 
 namespace FileSyncCommon
 {
-    public class Client 
+    public class Client:Logging
     {
         private string _host;
         private int _port;
@@ -77,17 +76,17 @@ namespace FileSyncCommon
         {
             if(!packet.OK)
             {
-                Log.Error("验证失败，连接断开");
+                LogError("验证失败，连接断开");
                 _session.StopMessageLoop();
             }
             else
             {
-                Log.Information("验证成功");
+                LogInformation("验证成功");
             }
         }
         private void DoFileContentInfoResponse(PacketFileContentInfoResponse packet)
         {
-            Log.Information($"发起请求文件信息: {packet.Path}");
+            LogInformation($"发起请求文件信息: {packet.Path}");
 
             var response = new PacketFileContentDetailRequest(_clientId, DateTime.Now.Ticks, packet.LastPos, packet.Path);
             _request.Increase(response.RequestId, packet.TotalCount);
@@ -128,7 +127,7 @@ namespace FileSyncCommon
                                 FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, null);
                                 FileOperator.SetupFile(path, fileResponse.LastWriteTime);
                                 _request.Remove(fileResponse.RequestId);
-                                Log.Information($"{fileResponse.Path}已经传输完成。");
+                                LogInformation($"{fileResponse.Path}已经传输完成。");
                             }
                             else //写入位置信息
                             {
@@ -139,15 +138,14 @@ namespace FileSyncCommon
                         }
                         catch (Exception e)
                         {
-                            Log.Error(e.Message);
-                            Log.Error(e.StackTrace);
+                            LogError(e.Message, e);
                             _session.SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path));
                         }
                         break;
                     }
                 case FileResponseType.FileReadError:
                     {
-                        Log.Error($"远程文件读取失败:{fileResponse.Path}");
+                        LogError($"远程文件读取失败:{fileResponse.Path}",null);
                         _request.Remove(fileResponse.RequestId);
                         break;
                     }
@@ -172,27 +170,27 @@ namespace FileSyncCommon
                         request.LastPos = pos;
                         _session.SendPacket(request);
                         _request.Increase(request.RequestId);
-                        Log.Information($"正在检验续传文件:{fileInformation.Path}");
+                        LogInformation($"正在检验续传文件:{fileInformation.Path}");
                     }
                     catch (Exception ex)
                     {
                         _session.SendPacket(request);
                         _request.Increase(request.RequestId);
-                        Log.Information($"文件校验失败:{fileInformation.Path}，重新下载。");
+                        LogInformation($"文件校验失败:{fileInformation.Path}，重新下载。");
                     }
                 }
                 else
                 {
                     _session.SendPacket(request);
                     _request.Increase(request.RequestId);
-                    Log.Information($"文件不存在:{fileInformation.Path}，发起下载。");
+                    LogInformation($"文件不存在:{fileInformation.Path}，发起下载。");
                 }
             }
             else
             {
                 if (localFileInfo.Length == fileInformation.FileLength && localFileInfo.LastWriteTime.Ticks == fileInformation.LastWriteTime)//请求CHECKSUM，看看是不是一样
                 {
-                    Log.Information($"{fileInformation.Path}文件一致，无须更新");
+                    LogInformation($"{fileInformation.Path}文件一致，无须更新");
 
                     /*
                     var checksum = FileOperator.GetCrc32(localFileInfo.FullName);
@@ -211,7 +209,7 @@ namespace FileSyncCommon
                 {
                     _session.SendPacket(request);
                     _request.Increase(request.RequestId);
-                    Log.Information($"{fileInformation.Path}文件不一致，需要更新");
+                    LogInformation($"{fileInformation.Path}文件不一致，需要更新");
                 }
             }
             _request.Decrease(fileInformation.RequestId);
@@ -233,7 +231,7 @@ namespace FileSyncCommon
                 _timer.Change(TimeSpan.FromMinutes(_interval), TimeSpan.FromMinutes(_interval));
             }
         }
-        protected void OnSocketError(int id, Exception e)
+        protected void OnSocketError(SocketSession socketSession, Exception e)
         {
             while (!_socket.Connected)
             {
@@ -243,7 +241,7 @@ namespace FileSyncCommon
         }
         protected void OnConnected()
         {
-            _session = new SocketSession(_clientId, _socket, _encrypt, _encryptKey);
+            _session = new SocketSession(_socket, _encrypt, _encryptKey);
             _session.OnReceivePackage += OnReceivePackage;
             _session.OnSocketError += OnSocketError;
             _session.StartMessageLoop();
@@ -270,8 +268,7 @@ namespace FileSyncCommon
             }
             catch (Exception e)
             {
-                Log.Error(e.Message);
-                Log.Error(e.StackTrace);
+                LogError(e.Message,e);
                 return false;
             }
         }
