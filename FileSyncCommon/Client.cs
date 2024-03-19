@@ -14,7 +14,7 @@ namespace FileSyncCommon
         private bool _encrypt;
         private byte _encryptKey;
         private string _password;
-        private Timer _timer;
+        private Thread _timer;
         private RequestCounter<long> _request = new RequestCounter<long>();
         private SocketSession _session;
         private Socket _socket;
@@ -219,16 +219,20 @@ namespace FileSyncCommon
             this._clientId = handshake.ClientId;
             if (_timer == null)
             {
-                _timer = new Timer((e) =>
+                _timer = new Thread((e) =>
                 {
-                    if (_request.IsEmpty)
+                    while (IsConnected)
                     {
-                        var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
-                        _request.Increase(packet.RequestId, 0);
-                        _session.SendPacket(packet);
+                        if (_request.IsEmpty)
+                        {
+                            var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
+                            _request.Increase(packet.RequestId, 0);
+                            _session.SendPacket(packet);
+                        }
+                        Thread.Sleep((int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
                     }
                 });
-                _timer.Change(TimeSpan.FromMinutes(_interval), TimeSpan.FromMinutes(_interval));
+                _timer.Start();
             }
         }
         protected void OnSocketError(SocketSession socketSession, Exception e)
