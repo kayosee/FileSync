@@ -12,9 +12,8 @@ public sealed class SocketSession
     private Thread _producer;
     private Thread _consumer;
     private Socket _socket;
-    private Signal _running;
-    private Semaphore _pushSemaphore;
-    private Semaphore _pullSemaphore;
+    private SemaphoreEx _pushSemaphore;
+    private SemaphoreEx _pullSemaphore;
     private volatile Boolean _disposed;
     private ConcurrentQueue<Packet> _packetQueue;
     private ConcurrentDictionary<int, ConstructorInfo> _constructors;
@@ -22,7 +21,7 @@ public sealed class SocketSession
     {
         get
         {
-            return !_disposed && _running.State;
+            return !_disposed;
         }
     }
     public bool Encrypt { get => _encrypt; set => _encrypt = value; }
@@ -43,58 +42,45 @@ public sealed class SocketSession
         _disposed = false;
         _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
         _packetQueue = new ConcurrentQueue<Packet>();
-        _pushSemaphore = new Semaphore(32, 32);
-        _pullSemaphore = new Semaphore(0, 32);
-        _running = new Signal(false);//手动控制运行
+        _pushSemaphore = new SemaphoreEx(64, 64);
+        _pullSemaphore = new SemaphoreEx(0, 64);
         _producer = new Thread((s) =>
         {
-            while (_running.Wait())
+            while (_socket.Connected)
             {
-                if (_disposed)
-                    break;
-
-                var packet = ReadPacket();
-                if (packet != null && _pushSemaphore.WaitOne())
-                {
-                    _pullSemaphore.Release();
-                    _packetQueue.Enqueue(packet);
+                var packet = ReadPacket();                
+                if (packet != null && _pushSemaphore.Wait())
+                {                    
+                    _packetQueue.Enqueue(packet);//1.顺序不能乱
+                    _pullSemaphore.Release();//2.一定要先入队列再唤醒处理线程！
                 }
             }
         });
-        _producer.Name = "producer";
+        _producer.Name = "producer-" + socket.Handle;
         _producer.Start();
 
         _consumer = new Thread((s) =>
         {
-            while (_running.Wait())
+            while (_socket.Connected)
             {
-                if (_disposed)
-                    break;
-
-                if (_pullSemaphore.WaitOne() && _packetQueue.TryDequeue(out var packet))
+                if (_pullSemaphore.Wait() && _packetQueue.TryDequeue(out var packet))
                 {
                     _pushSemaphore.Release();
                     if (OnReceivePackage != null)
-                        OnReceivePackage.Invoke(packet);
+                        OnReceivePackage(packet);
                 }
             }
         });
-        _consumer.Name = "consumer";
+        _consumer.Name = "consumer-" + socket.Handle;
         _consumer.Start();
 
-    }
-    public void StartMessageLoop()
-    {
-        _running.Promitted();
-    }
-    public void StopMessageLoop()
-    {
-        _running.Prohibited();
     }
     public void Disconnect()
     {
         try
         {            
+            //_pullSemaphore.ReleaseAll();
+            //_pushSemaphore.ReleaseAll();
             _disposed = true;
             _socket.Close();
         }

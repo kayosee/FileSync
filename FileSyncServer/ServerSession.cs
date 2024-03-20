@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Collections.Specialized.BitVector32;
 
 namespace FileSyncServer
 {
@@ -17,11 +18,18 @@ namespace FileSyncServer
         private int _daysBefore;
         private int _total;
         private SocketSession _session;
+        private string _password;
+        public delegate void AuthenticateHandler(bool success, ServerSession session);
+        public event AuthenticateHandler OnAuthenticate;
         public SocketSession SocketSession { get { return _session; } }
-        public ServerSession(int id, string folder, int daysBefore, Socket socket, bool encrypt, byte encryptKey) 
+
+        public int Id { get => _id; set => _id = value; }
+
+        public ServerSession(int id, string folder, string password, int daysBefore, Socket socket, bool encrypt, byte encryptKey)
         {
             _id = id;
             _folder = folder;
+            _password = password;
             _daysBefore = daysBefore;
             _session = new SocketSession(socket, encrypt, encryptKey);
             _session.OnSocketError += OnSocketError;
@@ -34,6 +42,9 @@ namespace FileSyncServer
             {
                 switch (packet.DataType)
                 {
+                    case PacketType.AuthenticateRequest:
+                        DoAuthenticateRequest((PacketAuthenticateRequest)packet);
+                        break;
                     case PacketType.FileListRequest:
                         DoFileListRequest((PacketFileListRequest)packet);
                         break;
@@ -47,6 +58,24 @@ namespace FileSyncServer
                 }
             }
         }
+
+        private void DoAuthenticateRequest(PacketAuthenticateRequest packet)
+        {
+            if (packet.Password == _password)
+            {
+                Log.Information("验证成功");
+                SocketSession.SendPacket(new PacketAuthenticateResponse(_id, packet.RequestId, true));
+                if (OnAuthenticate != null)
+                    OnAuthenticate(true, this);
+            }
+            else
+            {
+                SocketSession.SendPacket(new PacketAuthenticateResponse(_id, 0, false));
+                if(OnAuthenticate != null) 
+                    OnAuthenticate(false, this);
+            }
+        }
+
         private void DoFileContentInfoRequest(PacketFileContentInfoRequest packet)
         {
             Log.Information($"收到读取文件信息请求:{packet.Path}");

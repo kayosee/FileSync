@@ -51,9 +51,6 @@ namespace FileSyncCommon
             {
                 switch (packet.DataType)
                 {
-                    case PacketType.Handshake:
-                        DoHandshake((PacketHandshake)packet);
-                        break;
                     case PacketType.AuthenticateResponse:
                         DoAuthenticateResponse((PacketAuthenticateResponse)packet); 
                         break;
@@ -77,11 +74,28 @@ namespace FileSyncCommon
             if(!packet.OK)
             {
                 LogError("验证失败，连接断开");
-                _session.StopMessageLoop();
+                _session.Disconnect();
             }
             else
             {
                 LogInformation("验证成功");
+                this._clientId = packet.ClientId;
+                _timer = new Thread((e) =>
+                {
+                    while (IsConnected)
+                    {
+                        if (_request.IsEmpty)
+                        {
+                            var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
+                            _request.Increase(packet.RequestId, 0);
+                            _session.SendPacket(packet);
+                        }
+                        Thread.Sleep((int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
+                    }
+                });
+                _timer.Name = "timer";
+                _timer.Start();
+
             }
         }
         private void DoFileContentInfoResponse(PacketFileContentInfoResponse packet)
@@ -214,27 +228,6 @@ namespace FileSyncCommon
             }
             _request.Decrease(fileInformation.RequestId);
         }
-        private void DoHandshake(PacketHandshake handshake)
-        {
-            this._clientId = handshake.ClientId;
-            if (_timer == null)
-            {
-                _timer = new Thread((e) =>
-                {
-                    while (IsConnected)
-                    {
-                        if (_request.IsEmpty)
-                        {
-                            var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
-                            _request.Increase(packet.RequestId, 0);
-                            _session.SendPacket(packet);
-                        }
-                        Thread.Sleep((int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
-                    }
-                });
-                _timer.Start();
-            }
-        }
         protected void OnSocketError(SocketSession socketSession, Exception e)
         {
             while (!_socket.Connected)
@@ -248,7 +241,6 @@ namespace FileSyncCommon
             _session = new SocketSession(_socket, _encrypt, _encryptKey);
             _session.OnReceivePackage += OnReceivePackage;
             _session.OnSocketError += OnSocketError;
-            _session.StartMessageLoop();
             var packet = new PacketAuthenticateRequest(0, 0, _password);
             _session.SendPacket(packet);
         }

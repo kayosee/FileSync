@@ -49,40 +49,28 @@ namespace FileSyncServer
                     Log.Information("新连接加入");
 
                     var clientId = _sessions.Count;
-                    var session = new ServerSession(clientId, _folder, _daysBefore, client, _encrypt, _encryptKey);
-                    var packet = session.SocketSession.ReceivePacket(TimeSpan.FromSeconds(AuthenticateTimeout));
-                    if (packet != null)
-                    {
-                        if (packet.DataType == PacketType.AuthenticateRequest)
-                        {
-                            var request = (PacketAuthenticateRequest)packet;
-                            if (request.Password == _password)
-                            {
-                                Log.Information("验证成功");
-                                client.IOControl(IOControlCode.KeepAliveValues, KeepAlive(1, 3000, 2000), null);//设置Keep-Alive参数
-                                session.SocketSession.SendPacket(new PacketAuthenticateResponse(clientId, request.RequestId, true));
-                                session.SocketSession.StartMessageLoop();
-                                if (_sessions.TryAdd(clientId, session))
-                                {
-                                    session.SocketSession.SendPacket(new PacketHandshake(clientId));
-                                }
-                                continue;
-                            }
-                        }
-                    }
-
-                    Log.Error("验证失败");
-                    session.SocketSession.SendPacket(new PacketAuthenticateResponse(clientId, 0, false));
-                    _ = new Timer((e) =>
-                    {
-                        session.SocketSession.Disconnect();
-                    }, null, TimeSpan.FromSeconds(AuthenticateTimeout), Timeout.InfiniteTimeSpan);//超时关闭验证失败连接,定时是为了发送结果出去
+                    var session = new ServerSession(clientId, _folder,_password, _daysBefore, client, _encrypt, _encryptKey);
+                    session.OnAuthenticate += Session_OnAuthenticate;
                 }
             });
             _acceptor.Name = "acceptor";
             _acceptor.Start();
 
         }
+
+        private void Session_OnAuthenticate(bool success, ServerSession session)
+        {
+            if (success)
+            {
+                _sessions.TryAdd(session.Id, session);
+                session.SocketSession.Socket.IOControl(IOControlCode.KeepAliveValues, KeepAlive(1, 3000, 2000), null);//设置Keep-Alive参数
+            }
+            else
+            {
+                session.SocketSession.Disconnect();
+            }
+        }
+
         public void Stop()
         {
             _socket.Close();
