@@ -3,7 +3,7 @@ using System.Net.Sockets;
 
 namespace FileSyncCommon
 {
-    public class Client:Logging
+    public class Client : Logging
     {
         private string _host;
         private int _port;
@@ -14,10 +14,11 @@ namespace FileSyncCommon
         private bool _encrypt;
         private byte _encryptKey;
         private string _password;
-        private Thread _timer;
+        private Timer _timer;
         private RequestCounter<long> _request = new RequestCounter<long>();
         private SocketSession _session;
         private Socket _socket;
+        private bool _disposed;
         public string Host { get => _host; set => _host = value; }
         public int Port { get => _port; set => _port = value; }
         public int ClientId { get => _clientId; set => _clientId = value; }
@@ -31,7 +32,6 @@ namespace FileSyncCommon
                 return _socket != null && _socket.Connected;
             }
         }
-        public bool IsRunning { get { return _session != null && _session.IsRunning; } }
         public bool Encrypt { get => _encrypt; set => _encrypt = value; }
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
         public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
@@ -80,21 +80,15 @@ namespace FileSyncCommon
             {
                 LogInformation("验证成功");
                 this._clientId = packet.ClientId;
-                _timer = new Thread((e) =>
+                _timer = new Timer((e) =>
                 {
-                    while (IsConnected)
+                    if (_request.IsEmpty && IsConnected)
                     {
-                        if (_request.IsEmpty)
-                        {
-                            var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
-                            _request.Increase(packet.RequestId, 0);
-                            _session.SendPacket(packet);
-                        }
-                        Thread.Sleep((int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
+                        var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
+                        _request.Increase(packet.RequestId, 0);
+                        _session.SendPacket(packet);
                     }
-                });
-                _timer.Name = "timer";
-                _timer.Start();
+                }, null, 0, (int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
 
             }
         }
@@ -271,7 +265,10 @@ namespace FileSyncCommon
         public void Disconnect()
         {
             if(IsConnected) {
+                _request.Clear();
                 _session.Disconnect();
+                if (_timer != null)
+                    _timer.Dispose();
             }
         }
     }

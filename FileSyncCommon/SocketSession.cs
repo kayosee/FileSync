@@ -7,6 +7,8 @@ namespace FileSyncCommon;
 
 public sealed class SocketSession
 {
+    private const int QueueSize = 32;
+    private volatile bool _disposed;
     private bool _encrypt;
     private byte _encryptKey;
     private Thread _producer;
@@ -14,16 +16,8 @@ public sealed class SocketSession
     private Socket _socket;
     private SemaphoreEx _pushSemaphore;
     private SemaphoreEx _pullSemaphore;
-    private volatile Boolean _disposed;
     private ConcurrentQueue<Packet> _packetQueue;
     private ConcurrentDictionary<int, ConstructorInfo> _constructors;
-    public bool IsRunning
-    {
-        get
-        {
-            return !_disposed;
-        }
-    }
     public bool Encrypt { get => _encrypt; set => _encrypt = value; }
     public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
     public Socket Socket { get => _socket; set => _socket = value; }
@@ -39,14 +33,13 @@ public sealed class SocketSession
         _encrypt = encrypt;
         _encryptKey = encryptKey;
 
-        _disposed = false;
         _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
         _packetQueue = new ConcurrentQueue<Packet>();
-        _pushSemaphore = new SemaphoreEx(64, 64);
-        _pullSemaphore = new SemaphoreEx(0, 64);
+        _pushSemaphore = new SemaphoreEx(QueueSize, QueueSize);
+        _pullSemaphore = new SemaphoreEx(0, QueueSize);
         _producer = new Thread((s) =>
         {
-            while (_socket.Connected)
+            while (!_disposed)
             {
                 var packet = ReadPacket();                
                 if (packet != null && _pushSemaphore.Wait())
@@ -61,7 +54,7 @@ public sealed class SocketSession
 
         _consumer = new Thread((s) =>
         {
-            while (_socket.Connected)
+            while (!_disposed)
             {
                 if (_pullSemaphore.Wait() && _packetQueue.TryDequeue(out var packet))
                 {
@@ -78,11 +71,11 @@ public sealed class SocketSession
     public void Disconnect()
     {
         try
-        {            
-            //_pullSemaphore.ReleaseAll();
-            //_pushSemaphore.ReleaseAll();
+        {
             _disposed = true;
             _socket.Close();
+            _pullSemaphore.ReleaseAll();
+            _pushSemaphore.ReleaseAll();
         }
         catch (Exception e)
         {
@@ -102,10 +95,7 @@ public sealed class SocketSession
         }
         catch (Exception e)
         {
-            if (_disposed)
-                return;
-
-            if (OnSocketError != null)
+            if (!_disposed && OnSocketError != null)
                 OnSocketError(this, e);
         }
     }
@@ -113,6 +103,9 @@ public sealed class SocketSession
     {
         try
         {
+            if (!_socket.Connected)
+                return null;
+
             var temp = _socket.ReceiveTimeout;
             if (timeout != null)
                 _socket.ReceiveTimeout = (int)timeout.Value.TotalMilliseconds;
@@ -132,6 +125,9 @@ public sealed class SocketSession
         buffer = new byte[length];
         try
         {
+            if (!_socket.Connected)
+                return false;
+
             var total = 0;
             while (total < length)
             {
@@ -162,6 +158,9 @@ public sealed class SocketSession
     {
         try
         {
+            if (!_socket.Connected)
+                return 0;
+
             Array.Resize(ref buffer, buffer.Length + sizeof(uint));
             Crc32Algorithm.ComputeAndWriteToEnd(buffer);
 
@@ -172,10 +171,7 @@ public sealed class SocketSession
         }
         catch (Exception e)
         {
-            if (_disposed)
-                return 0;
-
-            if (OnSocketError != null)
+            if (!_disposed && OnSocketError != null)
                 OnSocketError(this, e);
             return 0;
         }

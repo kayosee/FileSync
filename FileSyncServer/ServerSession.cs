@@ -20,6 +20,8 @@ namespace FileSyncServer
         private SocketSession _session;
         private string _password;
         public delegate void AuthenticateHandler(bool success, ServerSession session);
+        public delegate void DisconnectHandler(ServerSession session);
+        public event DisconnectHandler OnDisconnect;
         public event AuthenticateHandler OnAuthenticate;
         public SocketSession SocketSession { get { return _session; } }
 
@@ -178,6 +180,9 @@ namespace FileSyncServer
             {
                 Log.Information($"客户ID（{_id}）已经断开连接");
                 _session.Disconnect();
+
+                if (OnDisconnect != null)
+                    OnDisconnect(this);
             }
         }
         private void GetFiles(int clientId, long requestId, DirectoryInfo directory, DateTime createBefore, ref List<PacketFileListDetailResponse> result)

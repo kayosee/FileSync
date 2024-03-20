@@ -58,7 +58,6 @@ namespace FileSyncClientUI
                 {
                     Disconnect();
                     OnPropertyChanged(nameof(IsConnected));
-                    OnPropertyChanged(nameof(IsRunning));
                 });
             }
         }
@@ -71,10 +70,11 @@ namespace FileSyncClientUI
                 {
                     if (!IsConnected)
                     {
+                        _logs.Clear();
+                        OnPropertyChanged(nameof(Logs));
                         if (Connect())
                         {
                             OnPropertyChanged(nameof(IsConnected));
-                            OnPropertyChanged(nameof(IsRunning));
                         }
                     }
                 });

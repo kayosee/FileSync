@@ -51,11 +51,18 @@ namespace FileSyncServer
                     var clientId = _sessions.Count;
                     var session = new ServerSession(clientId, _folder,_password, _daysBefore, client, _encrypt, _encryptKey);
                     session.OnAuthenticate += Session_OnAuthenticate;
+                    session.OnDisconnect += Session_OnDisconnect;
                 }
             });
             _acceptor.Name = "acceptor";
             _acceptor.Start();
 
+        }
+
+        private void Session_OnDisconnect(ServerSession session)
+        {
+            if (_sessions.ContainsKey(session.Id))
+                _sessions.Remove(session.Id, out var _);
         }
 
         private void Session_OnAuthenticate(bool success, ServerSession session)
