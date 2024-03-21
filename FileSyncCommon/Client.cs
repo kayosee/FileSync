@@ -19,6 +19,8 @@ namespace FileSyncCommon
         private SocketSession _session;
         private Socket _socket;
         private volatile bool _running;
+        public delegate void FolderListResponseHandler(PacketFolderListResponse response);
+        public event FolderListResponseHandler OnFolderListResponse;
         public string Host { get => _host; set => _host = value; }
         public int Port { get => _port; set => _port = value; }
         public int ClientId { get => _clientId; set => _clientId = value; }
@@ -67,9 +69,19 @@ namespace FileSyncCommon
                     case PacketType.FileContentDetailResponse:
                         DoFileContentDetailResponse((PacketFileContentDetailResponse)packet);
                         break;
+                    case PacketType.FolderListResponse:
+                        DoFolderListResponse((PacketFolderListResponse)packet); 
+                        break;
                 }
             }
         }
+
+        private void DoFolderListResponse(PacketFolderListResponse packet)
+        {
+            if (OnFolderListResponse != null)
+                OnFolderListResponse(packet);
+        }
+
         private void DoAuthenticateResponse(PacketAuthenticateResponse packet)
         {
             if(!packet.OK)

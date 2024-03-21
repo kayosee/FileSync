@@ -56,9 +56,27 @@ namespace FileSyncServer
                     case PacketType.FileContentDetailRequest:
                         DoFileContentDetailRequest((PacketFileContentDetailRequest)packet);
                         break;
+                    case PacketType.FolderListRequest:
+                        DoFolderListRequest((PacketFolderListRequest)packet);
+                        break;
                     default: break;
                 }
             }
+        }
+
+        private void DoFolderListRequest(PacketFolderListRequest packet)
+        {
+            var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
+            if (Path.Exists(localPath))
+            {
+                DirectoryInfo di = new DirectoryInfo(localPath);
+                var query = from r in di.GetDirectories()
+                            let s = r.FullName.Replace(_folder, "")
+                            select s;
+                _session.SendPacket(new PacketFolderListResponse(packet.ClientId, packet.RequestId, packet.Path, query.ToArray()));
+            }
+            else
+                _session.SendPacket(new PacketFolderListResponse(packet.ClientId, packet.RequestId, packet.Path, new string[0]));
         }
 
         private void DoAuthenticateRequest(PacketAuthenticateRequest packet)
@@ -73,7 +91,7 @@ namespace FileSyncServer
             else
             {
                 SocketSession.SendPacket(new PacketAuthenticateResponse(_id, 0, false));
-                if(OnAuthenticate != null) 
+                if (OnAuthenticate != null)
                     OnAuthenticate(false, this);
             }
         }
