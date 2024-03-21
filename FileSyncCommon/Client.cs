@@ -18,7 +18,7 @@ namespace FileSyncCommon
         private RequestCounter<long> _request = new RequestCounter<long>();
         private SocketSession _session;
         private Socket _socket;
-        private bool _disposed;
+        private volatile bool _running;
         public string Host { get => _host; set => _host = value; }
         public int Port { get => _port; set => _port = value; }
         public int ClientId { get => _clientId; set => _clientId = value; }
@@ -35,6 +35,7 @@ namespace FileSyncCommon
         public bool Encrypt { get => _encrypt; set => _encrypt = value; }
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
         public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
+        public bool Running { get => _running; set => _running = value; }
 
         public Client()
         {
@@ -82,6 +83,9 @@ namespace FileSyncCommon
                 this._clientId = packet.ClientId;
                 _timer = new Timer((e) =>
                 {
+                    if (_running)
+                        return;
+
                     if (_request.IsEmpty && IsConnected)
                     {
                         var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
@@ -89,7 +93,6 @@ namespace FileSyncCommon
                         _session.SendPacket(packet);
                     }
                 }, null, 0, (int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
-
             }
         }
         private void DoFileContentInfoResponse(PacketFileContentInfoResponse packet)
@@ -270,6 +273,20 @@ namespace FileSyncCommon
                 if (_timer != null)
                     _timer.Dispose();
             }
+        }
+        public void Start()
+        {
+            _running = true;
+        }
+        public void Pause()
+        {
+            _running = false;
+        }
+
+        public void QueryFolders(string root)
+        {
+            if (IsConnected)
+                _session.SendPacket(new PacketFolderListRequest(_clientId, DateTime.Now.Ticks, root));
         }
     }
 }

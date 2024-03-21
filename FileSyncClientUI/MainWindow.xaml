@@ -32,8 +32,13 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="50*"/>
+                        <ColumnDefinition Width="50*"/>
+                    </Grid.ColumnDefinitions>
                     <dxlc:LayoutControl Grid.Row="0" Orientation="Vertical" IsEnabled="{Binding Path=IsConnected,Converter={StaticResource InvertBoolValueConverter1}}">
                         <dxlc:LayoutGroup>
                             <dxlc:LayoutItem Label="名称">
@@ -73,7 +78,7 @@
                                 <dxe:TextEdit EditValue="{Binding Path=Password,Mode=TwoWay}"></dxe:TextEdit>
                             </dxlc:LayoutItem>
                             <dxlc:LayoutItem Label="同步间隔(分钟)">
-                                <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Interval,Mode=TwoWay}" MinValue="1"></dxe:SpinEdit>
+                                <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Interval,Mode=TwoWay}" MinValue="1"/>
                             </dxlc:LayoutItem>
                         </dxlc:LayoutGroup>
                     </dxlc:LayoutControl>
@@ -81,14 +86,25 @@
                     <dxlc:LayoutControl Grid.Row="1">
                         <dxlc:LayoutGroup>
                             <dxlc:LayoutItem>
-                                <dx:SimpleButton Content="启动" Command="{Binding Path=Start}" IsEnabled="{Binding Path=IsConnected,Converter={StaticResource InvertBoolValueConverter1}}"></dx:SimpleButton>
+                                <dx:SimpleButton Content="连接" Command="{Binding Path=DoConnect}" IsEnabled="{Binding Path=IsConnected,Converter={StaticResource InvertBoolValueConverter1}}"/>
                             </dxlc:LayoutItem>
                             <dxlc:DataLayoutItem>
-                                <dx:SimpleButton Content="停止" Command="{Binding Path=Stop}" IsEnabled="{Binding Path=IsConnected}"></dx:SimpleButton>
+                                <dx:SimpleButton Content="断开" Command="{Binding Path=DoDisconnect}" IsEnabled="{Binding Path=IsConnected}"/>
                             </dxlc:DataLayoutItem>
                         </dxlc:LayoutGroup>
                     </dxlc:LayoutControl>
                     <dxlc:LayoutControl Grid.Row="2">
+                        <dxlc:LayoutGroup>
+                            <dxlc:LayoutItem>
+                                <dx:SimpleButton Content="开始同步" Command="{Binding Path=DoStart}"/>
+                            </dxlc:LayoutItem>
+                            <dxlc:DataLayoutItem>
+                                <dx:SimpleButton Content="暂停同步" Command="{Binding Path=DoPause}"/>
+                            </dxlc:DataLayoutItem>
+                        </dxlc:LayoutGroup>
+                    </dxlc:LayoutControl>
+
+                    <dxlc:LayoutControl Grid.Row="3" Grid.ColumnSpan="2">
                         <dxlc:LayoutGroup>
                             <dxlc:LayoutItem Label="日志" VerticalAlignment="Stretch" LabelPosition="Top" LabelHorizontalAlignment="Center">
                                 <ListBox ItemsSource="{Binding Path=Logs}"></ListBox>

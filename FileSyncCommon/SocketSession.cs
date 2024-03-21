@@ -103,9 +103,6 @@ public sealed class SocketSession
     {
         try
         {
-            if (!_socket.Connected)
-                return null;
-
             var temp = _socket.ReceiveTimeout;
             if (timeout != null)
                 _socket.ReceiveTimeout = (int)timeout.Value.TotalMilliseconds;
@@ -125,9 +122,6 @@ public sealed class SocketSession
         buffer = new byte[length];
         try
         {
-            if (!_socket.Connected)
-                return false;
-
             var total = 0;
             while (total < length)
             {
@@ -158,9 +152,6 @@ public sealed class SocketSession
     {
         try
         {
-            if (!_socket.Connected)
-                return 0;
-
             Array.Resize(ref buffer, buffer.Length + sizeof(uint));
             Crc32Algorithm.ComputeAndWriteToEnd(buffer);
 

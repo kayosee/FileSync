@@ -50,7 +50,31 @@ namespace FileSyncClientUI
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
         }
         [JsonIgnore]
-        public ICommand Stop
+        public ICommand DoStart
+        {
+            get
+            {
+                return new SimpleCommand((f => IsConnected && !Running), f =>
+                {
+                    Start();
+                    OnPropertyChanged(nameof(Running));
+                });
+            }
+        }
+        [JsonIgnore]
+        public ICommand DoPause
+        {
+            get
+            {
+                return new SimpleCommand((f => IsConnected && Running), f =>
+                {
+                    Pause();
+                    OnPropertyChanged(nameof(Running));
+                });
+            }
+        }
+        [JsonIgnore]
+        public ICommand DoDisconnect
         {
             get
             {
@@ -62,7 +86,7 @@ namespace FileSyncClientUI
             }
         }
         [JsonIgnore]
-        public ICommand Start
+        public ICommand DoConnect
         {
             get
             {
