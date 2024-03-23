@@ -17,12 +17,15 @@ namespace FileSyncClientUI
     {      
         private string _name;
         private ObservableCollection<string> _logs;
+
+        private PathNode _root;
         [JsonProperty]
         public string Name { get { return _name; } set { _name = value; OnPropertyChanged(nameof(Name)); } }
         public event PropertyChangedEventHandler? PropertyChanged;
         public ClientModelView()
         {
             _logs = new ObservableCollection<string>();
+            _root = new PathNode("");
             OnError += OnLogError;
             OnInformation += OnLogInformation;
         }
@@ -99,11 +102,19 @@ namespace FileSyncClientUI
                         if (Connect())
                         {
                             OnPropertyChanged(nameof(IsConnected));
+                            QueryFolders(_root.Path);
+                            OnFolderListResponse += ClientModelView_OnFolderListResponse;
                         }
                     }
                 });
             }
         }
+
+        private void ClientModelView_OnFolderListResponse(PacketFolderListResponse response)
+        {
+            
+        }
+
         [JsonProperty]
         public new string Host
         {
@@ -198,5 +209,7 @@ namespace FileSyncClientUI
                 });
             }
         }
+        [JsonIgnore]
+        public PathNode Root { get => _root; set => _root = value; }
     }
 }

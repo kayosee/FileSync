@@ -19,6 +19,9 @@ namespace FileSyncClientUI
         public MainWindow()
         {
             InitializeComponent();
+            PathNode root=new PathNode("");
+            var x=root.Append("a").Append("b").Append("c").Append("d").Append("e");
+            var a=x.Path;
         }
 
     }
