@@ -11,6 +11,7 @@ namespace FileSyncClientUI
 {
     public class PathNode
     {
+
         public string Name
         {
             get; set;
@@ -21,9 +22,10 @@ namespace FileSyncClientUI
             {
                 var list = new List<string>();
                 GetPath(this, ref list);
-                return string.Join("/", list);
+                return string.Join(System.IO.Path.DirectorySeparatorChar, list);
             }
         }
+        public bool IsExpand {  get; set; }
         public ObservableCollection<PathNode> Nodes { get; set; } = new ObservableCollection<PathNode>();
         public PathNode? Parent { get; set; }
         public PathNode(string name)
@@ -34,7 +36,7 @@ namespace FileSyncClientUI
         {
             var temp = new PathNode(name);
             temp.Parent = this;
-            Nodes.Append(temp);
+            Nodes.Add(temp);
             return temp;
         }
         public void GetPath(PathNode node, ref List<string> path)
@@ -44,6 +46,30 @@ namespace FileSyncClientUI
             {
                 GetPath(node.Parent, ref path);
             }
+        }
+
+        public PathNode? FindChild(string path, int level)
+        {
+            if (path == null)
+                return null;
+
+            var names = path.Split(System.IO.Path.DirectorySeparatorChar);
+            if (level >= names.Length)
+                return null;
+
+            if (names[level] == Name)
+            {
+                if (level == names.Length - 1)
+                    return this;
+
+                foreach (var sub in Nodes)
+                {
+                    var findout = sub.FindChild(path, level + 1);
+                    if (findout != null)
+                        return findout;
+                }
+            }
+            return null;
         }
     }
 }

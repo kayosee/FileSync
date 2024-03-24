@@ -71,7 +71,7 @@ namespace FileSyncServer
             {
                 DirectoryInfo di = new DirectoryInfo(localPath);
                 var query = from r in di.GetDirectories()
-                            let s = r.FullName.Replace(_folder, "")
+                            let s = r.Name
                             select s;
                 _session.SendPacket(new PacketFolderListResponse(packet.ClientId, packet.RequestId, packet.Path, query.ToArray()));
             }

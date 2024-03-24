@@ -14,7 +14,7 @@ using UICommon;
 namespace FileSyncClientUI
 {
     public class ClientModelView : Client, INotifyPropertyChanged
-    {      
+    {
         private string _name;
         private ObservableCollection<string> _logs;
 
@@ -112,7 +112,15 @@ namespace FileSyncClientUI
 
         private void ClientModelView_OnFolderListResponse(PacketFolderListResponse response)
         {
-            
+            var node = _root.FindChild(response.Path, 0);
+            if (node != null)
+            {
+                foreach (var dir in response.FolderList)
+                    node.Append(dir);
+
+                node.IsExpand = true;
+                OnPropertyChanged(nameof(node));
+            }
         }
 
         [JsonProperty]

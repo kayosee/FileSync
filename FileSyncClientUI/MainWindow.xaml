@@ -84,11 +84,11 @@
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup VerticalAlignment="Stretch">
                                 <dxlc:DataLayoutItem VerticalAlignment="Stretch">
-                                    <TreeView VerticalAlignment="Stretch" ItemsSource="{Binding}">
+                                    <TreeView VerticalAlignment="Stretch" ItemsSource="{Binding Root}">
                                         <TreeView.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding}"/>
-                                            </DataTemplate>
+                                            <HierarchicalDataTemplate ItemsSource="{Binding Nodes}" DataType="local:PathNode">
+                                                <TreeViewItem Header="{Binding Name}" IsExpanded="{Binding IsExpand}"/>
+                                            </HierarchicalDataTemplate>
                                         </TreeView.ItemTemplate>
                                     </TreeView>
                                 </dxlc:DataLayoutItem>

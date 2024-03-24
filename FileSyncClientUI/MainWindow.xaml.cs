@@ -21,7 +21,8 @@ namespace FileSyncClientUI
             InitializeComponent();
             PathNode root=new PathNode("");
             var x=root.Append("a").Append("b").Append("c").Append("d").Append("e");
-            var a=x.Path;
+            root.FindChild("\\a\\b", 0).Append("f");
+            var b=root.FindChild("\\a\\b\\f\\1\\2\\3\\4",0);
         }
 
     }

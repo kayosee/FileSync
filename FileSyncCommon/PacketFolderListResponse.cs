@@ -23,6 +23,7 @@ namespace FileSyncCommon
         }
 
         public string Path { get => _path; set => _path = value; }
+        public string[] FolderList { get => _folderList; set => _folderList = value; }
 
         protected override void Deserialize(byte[] bytes)
         {
