@@ -14,6 +14,7 @@ namespace FileSyncCommon
         private bool _encrypt;
         private byte _encryptKey;
         private string _password;
+        private bool _authorized;
         private Timer _timer;
         private RequestCounter<long> _request = new RequestCounter<long>();
         private SocketSession _session;
@@ -55,7 +56,7 @@ namespace FileSyncCommon
                 switch (packet.DataType)
                 {
                     case PacketType.AuthenticateResponse:
-                        DoAuthenticateResponse((PacketAuthenticateResponse)packet); 
+                        DoAuthenticateResponse((PacketAuthenticateResponse)packet);
                         break;
                     case PacketType.FileListInfoResponse:
                         DoFileListInfoResponse((PacketFileListInfoResponse)packet);
@@ -70,21 +71,19 @@ namespace FileSyncCommon
                         DoFileContentDetailResponse((PacketFileContentDetailResponse)packet);
                         break;
                     case PacketType.FolderListResponse:
-                        DoFolderListResponse((PacketFolderListResponse)packet); 
+                        DoFolderListResponse((PacketFolderListResponse)packet);
                         break;
                 }
             }
         }
-
         private void DoFolderListResponse(PacketFolderListResponse packet)
         {
             if (OnFolderListResponse != null)
                 OnFolderListResponse(packet);
         }
-
         private void DoAuthenticateResponse(PacketAuthenticateResponse packet)
         {
-            if(!packet.OK)
+            if (!packet.OK)
             {
                 LogError("验证失败，连接断开");
                 _session.Disconnect();
@@ -93,18 +92,7 @@ namespace FileSyncCommon
             {
                 LogInformation("验证成功");
                 this._clientId = packet.ClientId;
-                _timer = new Timer((e) =>
-                {
-                    if (_running)
-                        return;
-
-                    if (_request.IsEmpty && IsConnected)
-                    {
-                        var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
-                        _request.Increase(packet.RequestId, 0);
-                        _session.SendPacket(packet);
-                    }
-                }, null, 0, (int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
+                this._authorized = true;
             }
         }
         private void DoFileContentInfoResponse(PacketFileContentInfoResponse packet)
@@ -168,7 +156,7 @@ namespace FileSyncCommon
                     }
                 case FileResponseType.FileReadError:
                     {
-                        LogError($"远程文件读取失败:{fileResponse.Path}",null);
+                        LogError($"远程文件读取失败:{fileResponse.Path}", null);
                         _request.Remove(fileResponse.RequestId);
                         break;
                     }
@@ -273,28 +261,52 @@ namespace FileSyncCommon
             }
             catch (Exception e)
             {
-                LogError(e.Message,e);
+                LogError(e.Message, e);
                 return false;
             }
         }
         public void Disconnect()
         {
-            if(IsConnected) {
+            if (IsConnected)
+            {
                 _request.Clear();
                 _session.Disconnect();
+                _authorized = false;
                 if (_timer != null)
                     _timer.Dispose();
             }
         }
-        public void Start()
+        public void Start(string remoteFolder)
         {
+            if (_authorized)
+                throw new UnauthorizedAccessException("尚未登录成功");
+
+            if(string.IsNullOrEmpty(remoteFolder))
+                throw new ArgumentNullException(nameof(remoteFolder));
+
             _running = true;
+            _remoteFolder = remoteFolder;
+
+            if (_timer != null)
+                _timer.Dispose();
+
+            _timer = new Timer((e) =>
+            {
+                if (_running)
+                    return;
+
+                if (_request.IsEmpty && IsConnected)
+                {
+                    var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
+                    _request.Increase(packet.RequestId, 0);
+                    _session.SendPacket(packet);
+                }
+            }, null, 0, (int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
         }
         public void Pause()
         {
             _running = false;
         }
-
         public void QueryFolders(string root)
         {
             if (IsConnected)

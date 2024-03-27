@@ -7,8 +7,9 @@
         xmlns:dxlc="http://schemas.devexpress.com/winfx/2008/xaml/layoutcontrol"
         xmlns:uicommon="clr-namespace:UICommon;assembly=UICommon" 
         xmlns:dx="http://schemas.devexpress.com/winfx/2008/xaml/core"
+        xmlns:dxmvvm="http://schemas.devexpress.com/winfx/2008/xaml/mvvm"
         xmlns:dxg="http://schemas.devexpress.com/winfx/2008/xaml/grid"
-        xmlns:dxe="http://schemas.devexpress.com/winfx/2008/xaml/editors" xmlns:local="clr-namespace:FileSyncClientUI" xmlns:dxmvvm="http://schemas.devexpress.com/winfx/2008/xaml/mvvm"
+        xmlns:dxe="http://schemas.devexpress.com/winfx/2008/xaml/editors" xmlns:local="clr-namespace:FileSyncClientUI" 
         mc:Ignorable="d"
         Title="备份客户端" Height="450" Width="600">
     <Window.DataContext>
@@ -84,10 +85,14 @@
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup VerticalAlignment="Stretch">
                                 <dxlc:DataLayoutItem VerticalAlignment="Stretch">
-                                    <TreeView VerticalAlignment="Stretch" ItemsSource="{Binding Root}">
+                                    <TreeView VerticalAlignment="Stretch" ItemsSource="{Binding Path=Root.Nodes}">
                                         <TreeView.ItemTemplate>
-                                            <HierarchicalDataTemplate ItemsSource="{Binding Nodes}" DataType="local:PathNode">
-                                                <TreeViewItem Header="{Binding Name}" IsExpanded="{Binding IsExpand}"/>
+                                            <HierarchicalDataTemplate ItemsSource="{Binding Path=Nodes}" DataType="local:PathNode">
+                                                <TreeViewItem Header="{Binding Path=Name}" IsExpanded="{Binding Path=IsExpand}" >
+                                                    <dxmvvm:Interaction.Behaviors>
+                                                        <dxmvvm:EventToCommand EventName="Expanded" Command="{Binding Path=Expand}" CommandParameter="{Binding Path=.}"/>
+                                                    </dxmvvm:Interaction.Behaviors>
+                                                </TreeViewItem>
                                             </HierarchicalDataTemplate>
                                         </TreeView.ItemTemplate>
                                     </TreeView>

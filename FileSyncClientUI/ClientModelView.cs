@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 using UICommon;
 
@@ -19,6 +20,7 @@ namespace FileSyncClientUI
         private ObservableCollection<string> _logs;
 
         private PathNode _root;
+
         [JsonProperty]
         public string Name { get { return _name; } set { _name = value; OnPropertyChanged(nameof(Name)); } }
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -28,6 +30,7 @@ namespace FileSyncClientUI
             _root = new PathNode("");
             OnError += OnLogError;
             OnInformation += OnLogInformation;
+            OnFolderListResponse += OnClientFolderListResponse;
         }
 
         private void OnLogInformation(string message)
@@ -59,7 +62,7 @@ namespace FileSyncClientUI
             {
                 return new SimpleCommand((f => IsConnected && !Running), f =>
                 {
-                    Start();
+                    Start(RemoteFolder);
                     OnPropertyChanged(nameof(Running));
                 });
             }
@@ -98,29 +101,33 @@ namespace FileSyncClientUI
                     if (!IsConnected)
                     {
                         _logs.Clear();
+                        _root = new PathNode("");
                         OnPropertyChanged(nameof(Logs));
                         if (Connect())
                         {
                             OnPropertyChanged(nameof(IsConnected));
                             QueryFolders(_root.Path);
-                            OnFolderListResponse += ClientModelView_OnFolderListResponse;
                         }
                     }
                 });
             }
         }
 
-        private void ClientModelView_OnFolderListResponse(PacketFolderListResponse response)
+        private void OnClientFolderListResponse(PacketFolderListResponse response)
         {
             var node = _root.FindChild(response.Path, 0);
-            if (node != null)
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                foreach (var dir in response.FolderList)
-                    node.Append(dir);
-
-                node.IsExpand = true;
-                OnPropertyChanged(nameof(node));
-            }
+                if (node != null)
+                {
+                    foreach (var dir in response.FolderList)
+                        node.Append(dir).OnExpand = (e) =>
+                        {
+                            QueryFolders(e.Path);
+                        };
+                    OnPropertyChanged(nameof(Root));
+                }
+            });
         }
 
         [JsonProperty]
@@ -219,5 +226,19 @@ namespace FileSyncClientUI
         }
         [JsonIgnore]
         public PathNode Root { get => _root; set => _root = value; }
+        [JsonIgnore]
+        public ICommand Expand
+        {
+            get
+            {
+                return new SimpleCommand(f=>true,f =>
+                {
+                    if (f is PathNode)
+                    {
+                        ((PathNode)f).IsExpand = true;
+                    }
+                });
+            }
+        }
     }
 }

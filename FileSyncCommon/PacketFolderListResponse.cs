@@ -16,7 +16,7 @@ namespace FileSyncCommon
         {
         }
 
-        public PacketFolderListResponse(int clientId, long requestId, string path, string[] folderList) : base(PacketType.FolderListRequest, clientId, requestId)
+        public PacketFolderListResponse(int clientId, long requestId, string path, string[] folderList) : base(PacketType.FolderListResponse, clientId, requestId)
         {
             _path = path;
             _folderList = folderList;

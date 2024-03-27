@@ -1,6 +1,8 @@
-﻿using System;
+﻿using DevExpress.Xpf.Core;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -9,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace FileSyncClientUI
 {
-    public class PathNode
+    public class PathNode : INotifyPropertyChanged
     {
 
         public string Name
@@ -25,23 +27,40 @@ namespace FileSyncClientUI
                 return string.Join(System.IO.Path.DirectorySeparatorChar, list);
             }
         }
-        public bool IsExpand {  get; set; }
+        public bool IsExpand
+        {
+            get => _isExpand;
+            set
+            {
+                _isExpand = value;
+                if (OnExpand != null)
+                    OnExpand(this);
+            }
+        }
+        public delegate void ExpandEventHandler(PathNode node);
+        public ExpandEventHandler OnExpand;
+        private bool _isExpand;
+
         public ObservableCollection<PathNode> Nodes { get; set; } = new ObservableCollection<PathNode>();
         public PathNode? Parent { get; set; }
         public PathNode(string name)
         {
             Name = name;
         }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
         public PathNode Append(string name)
         {
             var temp = new PathNode(name);
             temp.Parent = this;
             Nodes.Add(temp);
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Nodes)));
             return temp;
         }
         public void GetPath(PathNode node, ref List<string> path)
         {
-            path.Insert(0,node.Name);
+            path.Insert(0, node.Name);
             if (node.Parent != null)
             {
                 GetPath(node.Parent, ref path);
