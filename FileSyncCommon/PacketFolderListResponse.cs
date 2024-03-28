@@ -11,7 +11,7 @@ namespace FileSyncCommon
         private string _path;
         private int _pathLength;
         private int _folderListLength;
-        private string[] _folderList;
+        private string _folderList;
         public PacketFolderListResponse(byte[] bytes) : base(bytes)
         {
         }
@@ -19,11 +19,24 @@ namespace FileSyncCommon
         public PacketFolderListResponse(int clientId, long requestId, string path, string[] folderList) : base(PacketType.FolderListResponse, clientId, requestId)
         {
             _path = path;
-            _folderList = folderList;
+            if (folderList != null && folderList.Length > 0)
+                _folderList = string.Join(";", folderList);
+            else
+                _folderList = string.Empty;
         }
 
         public string Path { get => _path; set => _path = value; }
-        public string[] FolderList { get => _folderList; set => _folderList = value; }
+        public string[] FolderList
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_folderList))
+                {
+                    return new string[0];
+                }
+                return _folderList.Split(";");
+            }
+        }
 
         protected override void Deserialize(byte[] bytes)
         {
@@ -40,11 +53,9 @@ namespace FileSyncCommon
                 _path = Encoding.UTF8.GetString(buffer).Trim('\0');
 
                 _folderListLength = stream.ReadInt32();
-
                 buffer = new byte[_folderListLength];
                 stream.Read(buffer, 0, _folderListLength);
-                _folderList = Encoding.UTF8.GetString(buffer).Trim('\0').Split(';');
-
+                _folderList = Encoding.UTF8.GetString(buffer).Trim('\0');
             }
         }
         protected override byte[] Serialize()

@@ -8,6 +8,8 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Windows.Input;
+using UICommon;
 
 namespace FileSyncClientUI
 {
@@ -33,12 +35,8 @@ namespace FileSyncClientUI
             set
             {
                 _isExpand = value;
-                if (OnExpand != null)
-                    OnExpand(this);
             }
         }
-        public delegate void ExpandEventHandler(PathNode node);
-        public ExpandEventHandler OnExpand;
         private bool _isExpand;
 
         public ObservableCollection<PathNode> Nodes { get; set; } = new ObservableCollection<PathNode>();
@@ -58,7 +56,7 @@ namespace FileSyncClientUI
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Nodes)));
             return temp;
         }
-        public void GetPath(PathNode node, ref List<string> path)
+        private void GetPath(PathNode node, ref List<string> path)
         {
             path.Insert(0, node.Name);
             if (node.Parent != null)

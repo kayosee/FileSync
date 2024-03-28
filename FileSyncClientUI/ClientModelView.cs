@@ -20,7 +20,6 @@ namespace FileSyncClientUI
         private ObservableCollection<string> _logs;
 
         private PathNode _root;
-
         [JsonProperty]
         public string Name { get { return _name; } set { _name = value; OnPropertyChanged(nameof(Name)); } }
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -120,11 +119,11 @@ namespace FileSyncClientUI
             {
                 if (node != null)
                 {
+                    node.IsExpand = true;
                     foreach (var dir in response.FolderList)
-                        node.Append(dir).OnExpand = (e) =>
-                        {
-                            QueryFolders(e.Path);
-                        };
+                    {
+                        var newNode = node.Append(dir);
+                    }
                     OnPropertyChanged(nameof(Root));
                 }
             });
@@ -227,18 +226,24 @@ namespace FileSyncClientUI
         [JsonIgnore]
         public PathNode Root { get => _root; set => _root = value; }
         [JsonIgnore]
-        public ICommand Expand
+        public ICommand Select
         {
             get
             {
-                return new SimpleCommand(f=>true,f =>
+                return new SimpleCommand(f => true, f =>
                 {
                     if (f is PathNode)
                     {
-                        ((PathNode)f).IsExpand = true;
+                        var node = (PathNode)f;
+                        RemoteFolder = node.Path;
+                        if(!node.IsExpand)
+                        {
+                            QueryFolders(node.Path);
+                        }
                     }
                 });
             }
         }
+
     }
 }
