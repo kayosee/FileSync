@@ -10,9 +10,10 @@
         xmlns:dxmvvm="http://schemas.devexpress.com/winfx/2008/xaml/mvvm"
         xmlns:dxg="http://schemas.devexpress.com/winfx/2008/xaml/grid"
         xmlns:dxe="http://schemas.devexpress.com/winfx/2008/xaml/editors" 
+        xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
         xmlns:local="clr-namespace:FileSyncClientUI" 
         mc:Ignorable="d"
-        Title="备份客户端" Height="450" Width="600">
+        Title="备份客户端" Height="450" Width="600" Icon="{dx:DXImage SvgImages/Outlook Inspired/ChangeView.svg}">
     <Window.DataContext>
         <local:MainWindowViewModel />
     </Window.DataContext>
@@ -21,12 +22,10 @@
         <local:TreeViewEventArgsConverter x:Key="TreeViewEventArgsConverter1"/>
     </Window.Resources>
     <dxmvvm:Interaction.Behaviors>
-        <dx:DXMessageBoxService/>
-        <dxmvvm:NotificationService>
-
-        </dxmvvm:NotificationService>
+        <dx:NotifyIconService Icon="{dx:DXImage SvgImages/Outlook Inspired/ChangeView.svg}" LeftDoubleClickCommand="{Binding Path=Show}">
+        </dx:NotifyIconService>
     </dxmvvm:Interaction.Behaviors>
-    <dx:DXTabControl ItemsSource="{Binding Path=Clients}">
+    <dx:DXTabControl ItemsSource="{Binding Path=Clients}" Name="tb">
         <dx:DXTabControl.View>
             <dx:TabControlMultiLineView HeaderLocation="Top" NewButtonShowMode="InTabPanel" NewTabCommand="{Binding Path=NewClient}" />
         </dx:DXTabControl.View>
@@ -45,13 +44,6 @@
                                 <dxlc:LayoutItem Label="端口">
                                     <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Port,Mode=TwoWay}" MinValue="1" MaxValue="65535"></dxe:SpinEdit>
                                 </dxlc:LayoutItem>
-                                <dxlc:DataLayoutItem Label="本地目录">
-                                    <dxe:ButtonEdit EditValue="{Binding Path=LocalFolder,Mode=TwoWay}" AllowDefaultButton="False">
-                                        <dxe:ButtonEdit.Buttons>
-                                            <dxe:ButtonInfo Content="选择目录" Command="{Binding SelectLocalFolder}"></dxe:ButtonInfo>
-                                        </dxe:ButtonEdit.Buttons>
-                                    </dxe:ButtonEdit>
-                                </dxlc:DataLayoutItem>
                                 <dxlc:LayoutItem Label="是否加密">
                                     <dxe:CheckEdit EditValue="{Binding Path=Encrypt,Mode=TwoWay}"></dxe:CheckEdit>
                                 </dxlc:LayoutItem>
@@ -80,9 +72,16 @@
 
                         </dxlc:LayoutGroup>
                         <dxlc:LayoutGroup Orientation="Vertical" dxlc:LayoutControl.AllowHorizontalSizing="True">
+                            <dxlc:DataLayoutItem Label="本地目录">
+                                <dxe:ButtonEdit EditValue="{Binding Path=LocalFolder,Mode=TwoWay}" AllowDefaultButton="False">
+                                    <dxe:ButtonEdit.Buttons>
+                                        <dxe:ButtonInfo Content="选择目录" Command="{Binding SelectLocalFolder}"></dxe:ButtonInfo>
+                                    </dxe:ButtonEdit.Buttons>
+                                </dxe:ButtonEdit>
+                            </dxlc:DataLayoutItem>
                             <dxlc:LayoutGroup>
                                 <dxlc:LayoutItem Label="远程目录">
-                                    <dxe:TextEdit EditValue="{Binding Path=RemoteFolder}"/>
+                                    <dxe:TextEdit EditValue="{Binding Path=RemoteFolder}" IsReadOnly="True"/>
                                 </dxlc:LayoutItem>
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup VerticalAlignment="Stretch">
@@ -96,10 +95,10 @@
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup>
                                 <dxlc:LayoutItem>
-                                    <dx:SimpleButton Content="开始同步" Command="{Binding Path=DoStart}"/>
+                                    <dx:SimpleButton Content="开始同步" Command="{Binding Path=DoStart}" IsEnabled="{Binding Runable}"/>
                                 </dxlc:LayoutItem>
                                 <dxlc:DataLayoutItem>
-                                    <dx:SimpleButton Content="暂停同步" Command="{Binding Path=DoPause}"/>
+                                    <dx:SimpleButton Content="暂停同步" Command="{Binding Path=DoPause}" IsEnabled="{Binding Pauseable}"/>
                                 </dxlc:DataLayoutItem>
                             </dxlc:LayoutGroup>
                         </dxlc:LayoutGroup>
@@ -107,7 +106,8 @@
                     <dxlc:LayoutGroup>
                         <dxlc:LayoutGroup>
                             <dxlc:LayoutItem Label="日志" VerticalAlignment="Stretch" LabelPosition="Top" LabelHorizontalAlignment="Center">
-                                <ListBox VerticalAlignment="Stretch" ItemsSource="{Binding Path=Logs}"></ListBox>
+                                <ListBox VerticalAlignment="Stretch" ItemsSource="{Binding Path=Logs}">
+                                </ListBox>
                             </dxlc:LayoutItem>
                         </dxlc:LayoutGroup>
                     </dxlc:LayoutGroup>
@@ -117,7 +117,10 @@
         </dx:DXTabControl.ItemTemplate>
         <dx:DXTabControl.ItemHeaderTemplate>
             <DataTemplate>
-                <TextBlock Text="{Binding Path=Name}"></TextBlock>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Path=Name}" Margin="0,0,5,0"></TextBlock>
+                    <dxe:ButtonClose Command="{Binding Path=DataContext.Remove,ElementName=tb}" CommandParameter="{Binding Path=.}"></dxe:ButtonClose>
+                </StackPanel>
             </DataTemplate>
         </dx:DXTabControl.ItemHeaderTemplate>
     </dx:DXTabControl>

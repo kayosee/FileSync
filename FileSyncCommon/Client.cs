@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using System.Text.Json.Serialization;
 
 namespace FileSyncCommon
 {
@@ -28,6 +29,7 @@ namespace FileSyncCommon
         public string LocalFolder { get => _localFolder; set => _localFolder = value; }
         public int Interval { get => _interval; set => _interval = value; }
         public string Password { get => _password; set => _password = value; }
+        [JsonIgnore]
         public bool IsConnected
         {
             get
@@ -38,6 +40,7 @@ namespace FileSyncCommon
         public bool Encrypt { get => _encrypt; set => _encrypt = value; }
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
         public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
+        [JsonIgnore]
         public bool Running { get => _running; set => _running = value; }
 
         public Client()
@@ -48,6 +51,7 @@ namespace FileSyncCommon
             _localFolder = localFolder;
             _remoteFolder = remoteFolder;
             _interval = interval;
+            _running = false;
         }
         private void OnReceivePackage(Packet packet)
         {
@@ -272,13 +276,14 @@ namespace FileSyncCommon
                 _request.Clear();
                 _session.Disconnect();
                 _authorized = false;
+                _running = false;
                 if (_timer != null)
                     _timer.Dispose();
             }
         }
         public void Start(string remoteFolder)
         {
-            if (_authorized)
+            if (!_authorized)
                 throw new UnauthorizedAccessException("尚未登录成功");
 
             if(string.IsNullOrEmpty(remoteFolder))
@@ -292,7 +297,7 @@ namespace FileSyncCommon
 
             _timer = new Timer((e) =>
             {
-                if (_running)
+                if (!_running)
                     return;
 
                 if (_request.IsEmpty && IsConnected)

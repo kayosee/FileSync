@@ -1,4 +1,5 @@
-﻿using FileSyncCommon;
+﻿using DevExpress.Xpf.Core.Native;
+using FileSyncCommon;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -17,15 +18,18 @@ namespace FileSyncClientUI
     public class ClientModelView : Client, INotifyPropertyChanged
     {
         private string _name;
-        private ObservableCollection<string> _logs;
-
         private PathNode _root;
         [JsonProperty]
         public string Name { get { return _name; } set { _name = value; OnPropertyChanged(nameof(Name)); } }
         public event PropertyChangedEventHandler? PropertyChanged;
         public ClientModelView()
         {
-            _logs = new ObservableCollection<string>();
+            Logs = new LimitQueue<string>(100);
+            Logs.CollectionChanged += (s, e) =>
+            {
+                if (Logs.Any())
+                    LastItem = Logs[^1];
+            };
             _root = new PathNode("");
             OnError += OnLogError;
             OnInformation += OnLogInformation;
@@ -36,7 +40,7 @@ namespace FileSyncClientUI
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                _logs.Add(message);
+                Logs.Add(message);
                 OnPropertyChanged(nameof(Logs));
             });
         }
@@ -45,7 +49,7 @@ namespace FileSyncClientUI
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                _logs.Add(message);
+                Logs.Add(message);
                 OnPropertyChanged(nameof(Logs));
             });
         }
@@ -59,10 +63,12 @@ namespace FileSyncClientUI
         {
             get
             {
-                return new SimpleCommand((f => IsConnected && !Running), f =>
+                return new SimpleCommand((f => true), f =>
                 {
                     Start(RemoteFolder);
                     OnPropertyChanged(nameof(Running));
+                    OnPropertyChanged(nameof(Runable));
+                    OnPropertyChanged(nameof(Pauseable));
                 });
             }
         }
@@ -71,12 +77,19 @@ namespace FileSyncClientUI
         {
             get
             {
-                return new SimpleCommand((f => IsConnected && Running), f =>
+                return new SimpleCommand((f => true), f =>
                 {
                     Pause();
                     OnPropertyChanged(nameof(Running));
+                    OnPropertyChanged(nameof(Runable));
+                    OnPropertyChanged(nameof(Pauseable));
                 });
             }
+        }
+        [JsonIgnore]
+        public string? LastItem
+        {
+            get;set;
         }
         [JsonIgnore]
         public ICommand DoDisconnect
@@ -87,6 +100,8 @@ namespace FileSyncClientUI
                 {
                     Disconnect();
                     OnPropertyChanged(nameof(IsConnected));
+                    OnPropertyChanged(nameof(Runable));
+                    OnPropertyChanged(nameof(Pauseable));
                 });
             }
         }
@@ -99,7 +114,7 @@ namespace FileSyncClientUI
                 {
                     if (!IsConnected)
                     {
-                        _logs.Clear();
+                        Logs.Clear();
                         _root = new PathNode("");
                         OnPropertyChanged(nameof(Logs));
                         if (Connect())
@@ -107,6 +122,8 @@ namespace FileSyncClientUI
                             OnPropertyChanged(nameof(IsConnected));
                             QueryFolders(_root.Path);
                         }
+                        OnPropertyChanged(nameof(Runable));
+                        OnPropertyChanged(nameof(Pauseable));
                     }
                 });
             }
@@ -165,6 +182,7 @@ namespace FileSyncClientUI
             {
                 base.RemoteFolder = value;
                 OnPropertyChanged(nameof(RemoteFolder));
+                OnPropertyChanged(nameof(Runable));
             }
         }
         [JsonProperty]
@@ -208,7 +226,7 @@ namespace FileSyncClientUI
             }
         }
         [JsonIgnore]
-        public ObservableCollection<string> Logs { get => _logs; set => _logs = value; }
+        public LimitQueue<string> Logs { get; set; }
 
         [JsonIgnore]
         public ICommand SelectLocalFolder
@@ -242,6 +260,22 @@ namespace FileSyncClientUI
                         }
                     }
                 });
+            }
+        }
+        [JsonIgnore]
+        public bool Runable
+        {
+            get
+            {
+                return IsConnected && !Running && !string.IsNullOrEmpty(RemoteFolder);
+            }
+        }
+        [JsonIgnore]
+        public bool Pauseable
+        {
+            get
+            {
+                return IsConnected && Running;
             }
         }
 

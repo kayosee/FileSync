@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using System.Windows.Input;
 using UICommon;
 
@@ -55,6 +56,31 @@ namespace FileSyncClientUI
             var config = System.IO.Path.Combine(Environment.CurrentDirectory, "config.json");
             var data = JsonConvert.SerializeObject(Clients);
             File.WriteAllText(config, data);
+        }
+
+        public ICommand Show
+        {
+            get
+            {
+                return new SimpleCommand(f => true, f =>
+                {
+                    System.Windows.Application.Current.MainWindow.Show();
+                    SystemCommands.RestoreWindow(System.Windows.Application.Current.MainWindow);
+                });
+            }
+        }
+
+        public ICommand Remove
+        {
+            get
+            {
+                return new SimpleCommand(f => true, f =>
+                {
+                    Clients.Remove(f as ClientModelView);
+                    OnPropertyChanged(nameof(Clients));
+                    ClientPropertyChanged(null, null);
+                });
+            }
         }
     }
 }

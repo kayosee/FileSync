@@ -19,11 +19,13 @@ namespace FileSyncClientUI
         public MainWindow()
         {
             InitializeComponent();
-            PathNode root=new PathNode("");
-            var x=root.Append("a").Append("b").Append("c").Append("d").Append("e");
-            root.FindChild("\\a\\b", 0).Append("f");
-            var b=root.FindChild("\\a\\b\\f\\1\\2\\3\\4",0);
         }
+        protected override void OnStateChanged(EventArgs e)
+        {
+            if (WindowState == System.Windows.WindowState.Minimized)
+                this.Hide();
 
+            base.OnStateChanged(e);
+        }
     }
 }
