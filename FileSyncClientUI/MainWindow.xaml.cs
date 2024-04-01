@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using DevExpress.Xpf.Grid;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -8,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace FileSyncClientUI
 {
@@ -26,6 +28,13 @@ namespace FileSyncClientUI
                 this.Hide();
 
             base.OnStateChanged(e);
+        }
+
+        private void TreeViewControl_ItemsSourceChanged(object sender, DevExpress.Xpf.Grid.ItemsSourceChangedEventArgs e)
+        {
+            Dispatcher.BeginInvoke(new Action(() => {
+                ((TreeViewControl)sender).CurrentItem = null;
+            }), DispatcherPriority.DataBind);
         }
     }
 }

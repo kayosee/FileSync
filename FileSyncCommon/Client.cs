@@ -29,7 +29,6 @@ namespace FileSyncCommon
         public string LocalFolder { get => _localFolder; set => _localFolder = value; }
         public int Interval { get => _interval; set => _interval = value; }
         public string Password { get => _password; set => _password = value; }
-        [JsonIgnore]
         public bool IsConnected
         {
             get
@@ -40,8 +39,7 @@ namespace FileSyncCommon
         public bool Encrypt { get => _encrypt; set => _encrypt = value; }
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
         public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
-        [JsonIgnore]
-        public bool Running { get => _running; set => _running = value; }
+        public bool Running { get => _running;}
 
         public Client()
         {

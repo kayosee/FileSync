@@ -278,6 +278,15 @@ namespace FileSyncClientUI
                 return IsConnected && Running;
             }
         }
-
+        [JsonIgnore]
+        public new bool IsConnected
+        {
+            get { return base.IsConnected; }
+        }
+        [JsonIgnore]
+        public new bool Running
+        {
+            get { return base.Running; }
+        }
     }
 }

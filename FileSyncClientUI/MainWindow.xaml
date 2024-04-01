@@ -13,7 +13,7 @@
         xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
         xmlns:local="clr-namespace:FileSyncClientUI" 
         mc:Ignorable="d"
-        Title="备份客户端" Height="450" Width="600" Icon="{dx:DXImage SvgImages/Outlook Inspired/ChangeView.svg}">
+        Title="备份客户端" Height="600" Width="800" Icon="{dx:DXImage SvgImages/Outlook Inspired/ChangeView.svg}">
     <Window.DataContext>
         <local:MainWindowViewModel />
     </Window.DataContext>
@@ -57,41 +57,46 @@
                                     <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Interval,Mode=TwoWay}" MinValue="1"/>
                                 </dxlc:LayoutItem>
                             </dxlc:LayoutGroup>
-
                             <dxlc:LayoutGroup>
                                 <dxlc:LayoutGroup>
-                                        <dxlc:LayoutItem>
-                                            <dx:SimpleButton Content="连接" Command="{Binding Path=DoConnect}" IsEnabled="{Binding Path=IsConnected,Converter={StaticResource InvertBoolValueConverter1}}"/>
-                                        </dxlc:LayoutItem>
-                                        <dxlc:DataLayoutItem>
-                                            <dx:SimpleButton Content="断开" Command="{Binding Path=DoDisconnect}" IsEnabled="{Binding Path=IsConnected}"/>
-                                        </dxlc:DataLayoutItem>
+                                    <dxlc:LayoutItem>
+                                        <dx:SimpleButton Content="连接" Command="{Binding Path=DoConnect}" IsEnabled="{Binding Path=IsConnected,Converter={StaticResource InvertBoolValueConverter1}}"/>
+                                    </dxlc:LayoutItem>
+                                    <dxlc:DataLayoutItem>
+                                        <dx:SimpleButton Content="断开" Command="{Binding Path=DoDisconnect}" IsEnabled="{Binding Path=IsConnected}"/>
+                                    </dxlc:DataLayoutItem>
                                 </dxlc:LayoutGroup>
-
                             </dxlc:LayoutGroup>
-
                         </dxlc:LayoutGroup>
                         <dxlc:LayoutGroup Orientation="Vertical" dxlc:LayoutControl.AllowHorizontalSizing="True">
-                            <dxlc:DataLayoutItem Label="本地目录">
-                                <dxe:ButtonEdit EditValue="{Binding Path=LocalFolder,Mode=TwoWay}" AllowDefaultButton="False">
-                                    <dxe:ButtonEdit.Buttons>
-                                        <dxe:ButtonInfo Content="选择目录" Command="{Binding SelectLocalFolder}"></dxe:ButtonInfo>
-                                    </dxe:ButtonEdit.Buttons>
-                                </dxe:ButtonEdit>
-                            </dxlc:DataLayoutItem>
+                            <dxlc:LayoutGroup>
+                                <dxlc:LayoutItem Label="本地目录">
+                                    <dxe:ButtonEdit EditValue="{Binding Path=LocalFolder,Mode=TwoWay}" AllowDefaultButton="False">
+                                        <dxe:ButtonEdit.Buttons>
+                                            <dxe:ButtonInfo Content="选择目录" Command="{Binding SelectLocalFolder}" IsEnabled="{Binding Runable}"/>
+                                        </dxe:ButtonEdit.Buttons>
+                                    </dxe:ButtonEdit>
+                                </dxlc:LayoutItem>
+                            </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup>
                                 <dxlc:LayoutItem Label="远程目录">
-                                    <dxe:TextEdit EditValue="{Binding Path=RemoteFolder}" IsReadOnly="True"/>
+                                    <dxe:TextEdit EditValue="{Binding Path=RemoteFolder}" IsReadOnly="True" IsEnabled="{Binding Runable}"/>
                                 </dxlc:LayoutItem>
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup VerticalAlignment="Stretch">
-                                <dxlc:DataLayoutItem VerticalAlignment="Stretch">
-                                    <dxg:TreeViewControl ItemsSource="{Binding Path=Root.Nodes}" ChildNodesPath="Nodes" TreeViewFieldName="Name" ShowBorder="False" >
-                                        <dxmvvm:Interaction.Behaviors>
-                                            <dxmvvm:EventToCommand EventName="SelectedItemChanged" Command="{Binding Path=Select}" EventArgsConverter="{StaticResource TreeViewEventArgsConverter1}"/>
-                                        </dxmvvm:Interaction.Behaviors>
+                                <dxlc:LayoutItem VerticalAlignment="Stretch">
+                                    <dxg:TreeViewControl ItemsSourceChanged="TreeViewControl_ItemsSourceChanged" IsEnabled="{Binding Runable}" ItemsSource="{Binding Path=Root.Nodes}" ChildNodesPath="Nodes" TreeViewFieldName="Name" ShowBorder="False">
+                                        <dxg:TreeViewControl.NodeContentTemplate>
+                                            <DataTemplate>
+                                                <Button Content="{Binding Path=Value}">
+                                                    <dxmvvm:Interaction.Behaviors>
+                                                        <dxmvvm:EventToCommand EventName="Click" Command="{Binding Path=Select}" EventArgsConverter="{StaticResource TreeViewEventArgsConverter1}"/>
+                                                    </dxmvvm:Interaction.Behaviors>
+                                                </Button>
+                                            </DataTemplate>
+                                        </dxg:TreeViewControl.NodeContentTemplate>
                                     </dxg:TreeViewControl>
-                                </dxlc:DataLayoutItem>
+                                </dxlc:LayoutItem>
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup>
                                 <dxlc:LayoutItem>
