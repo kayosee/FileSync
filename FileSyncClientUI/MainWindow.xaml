@@ -73,25 +73,22 @@
                                 <dxlc:LayoutItem Label="本地目录">
                                     <dxe:ButtonEdit EditValue="{Binding Path=LocalFolder,Mode=TwoWay}" AllowDefaultButton="False">
                                         <dxe:ButtonEdit.Buttons>
-                                            <dxe:ButtonInfo Content="选择目录" Command="{Binding SelectLocalFolder}" IsEnabled="{Binding Runable}"/>
+                                            <dxe:ButtonInfo Content="选择目录" Command="{Binding SelectLocalFolder}" IsEnabled="{Binding Running,Converter={StaticResource InvertBoolValueConverter1}}"/>
                                         </dxe:ButtonEdit.Buttons>
                                     </dxe:ButtonEdit>
                                 </dxlc:LayoutItem>
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup>
                                 <dxlc:LayoutItem Label="远程目录">
-                                    <dxe:TextEdit EditValue="{Binding Path=RemoteFolder}" IsReadOnly="True" IsEnabled="{Binding Runable}"/>
+                                    <dxe:TextEdit EditValue="{Binding Path=RemoteFolder}" IsReadOnly="True"  IsEnabled="{Binding Running,Converter={StaticResource InvertBoolValueConverter1}}"/>
                                 </dxlc:LayoutItem>
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup VerticalAlignment="Stretch">
                                 <dxlc:LayoutItem VerticalAlignment="Stretch">
-                                    <dxg:TreeViewControl ItemsSourceChanged="TreeViewControl_ItemsSourceChanged" IsEnabled="{Binding Runable}" ItemsSource="{Binding Path=Root.Nodes}" ChildNodesPath="Nodes" TreeViewFieldName="Name" ShowBorder="False">
+                                    <dxg:TreeViewControl ItemsSourceChanged="TreeViewControl_ItemsSourceChanged" IsEnabled="{Binding Running,Converter={StaticResource InvertBoolValueConverter1}}" ItemsSource="{Binding Path=Root.Nodes}" ChildNodesPath="Nodes" TreeViewFieldName="Name" ShowBorder="False" >
                                         <dxg:TreeViewControl.NodeContentTemplate>
                                             <DataTemplate>
-                                                <Button Content="{Binding Path=Value}">
-                                                    <dxmvvm:Interaction.Behaviors>
-                                                        <dxmvvm:EventToCommand EventName="Click" Command="{Binding Path=Select}" EventArgsConverter="{StaticResource TreeViewEventArgsConverter1}"/>
-                                                    </dxmvvm:Interaction.Behaviors>
+                                                <Button Content="{Binding Path=Value}" Command="{Binding Path=DataContext.Select,RelativeSource={RelativeSource AncestorType=dxg:TreeViewControl, Mode=FindAncestor}}" CommandParameter="{Binding Path=SelectedItem,RelativeSource={RelativeSource AncestorType=dxg:TreeViewControl, Mode=FindAncestor}}" BorderThickness="0" HorizontalAlignment="Left">
                                                 </Button>
                                             </DataTemplate>
                                         </dxg:TreeViewControl.NodeContentTemplate>

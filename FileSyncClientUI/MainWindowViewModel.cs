@@ -53,6 +53,9 @@ namespace FileSyncClientUI
 
         private void ClientPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            if (e.PropertyName == nameof(ClientModelView.Logs))
+                return;
+
             var config = System.IO.Path.Combine(Environment.CurrentDirectory, "config.json");
             var data = JsonConvert.SerializeObject(Clients);
             File.WriteAllText(config, data);
