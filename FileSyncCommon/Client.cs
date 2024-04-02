@@ -118,8 +118,11 @@ namespace FileSyncCommon
             {
                 case FileResponseType.Empty:
                     {
-                        File.Create(path).Close();
                         FileInfo fi = new FileInfo(path);
+                        if (!fi.Directory.Exists)
+                            fi.Directory.Create();
+
+                        File.Create(path).Close();
                         fi.LastWriteTime = DateTime.FromBinary(fileResponse.LastWriteTime);
                         _request.Remove(fileResponse.RequestId);
                         break;
