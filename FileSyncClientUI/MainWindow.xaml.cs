@@ -29,12 +29,5 @@ namespace FileSyncClientUI
 
             base.OnStateChanged(e);
         }
-
-        private void TreeViewControl_ItemsSourceChanged(object sender, DevExpress.Xpf.Grid.ItemsSourceChangedEventArgs e)
-        {
-            Dispatcher.BeginInvoke(new Action(() => {
-                ((TreeViewControl)sender).CurrentItem = null;
-            }), DispatcherPriority.DataBind);
-        }
     }
 }

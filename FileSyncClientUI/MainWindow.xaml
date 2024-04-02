@@ -19,7 +19,6 @@
     </Window.DataContext>
     <Window.Resources>
         <uicommon:InvertBoolValueConverter x:Key="InvertBoolValueConverter1"/>
-        <local:TreeViewEventArgsConverter x:Key="TreeViewEventArgsConverter1"/>
     </Window.Resources>
     <dxmvvm:Interaction.Behaviors>
         <dx:NotifyIconService Icon="{dx:DXImage SvgImages/Outlook Inspired/ChangeView.svg}" LeftDoubleClickCommand="{Binding Path=Show}">
@@ -83,16 +82,31 @@
                                     <dxe:TextEdit EditValue="{Binding Path=RemoteFolder}" IsReadOnly="True"  IsEnabled="{Binding Running,Converter={StaticResource InvertBoolValueConverter1}}"/>
                                 </dxlc:LayoutItem>
                             </dxlc:LayoutGroup>
+                            <dxlc:LayoutGroup>
+                                <StackPanel Orientation="Horizontal" Height="24">
+                                    <dx:SimpleButton BorderThickness="0" Margin="0,0,6,0" Glyph="{dx:DXImage SvgImages/Icon Builder/Actions_Home.svg}" HorizontalAlignment="Left" Command="{Binding Path=GoHome}" Background="Transparent" IsEnabled="{Binding Running,Converter={StaticResource InvertBoolValueConverter1}}">
+                                    </dx:SimpleButton>
+                                    <dx:SimpleButton BorderThickness="0" Margin="0,0,6,0" Glyph="{dx:DXImage SvgImages/Icon Builder/Actions_Arrow5LeftUp.svg}" HorizontalAlignment="Left" Command="{Binding Path=GoUpper}" Background="Transparent" IsEnabled="{Binding Running,Converter={StaticResource InvertBoolValueConverter1}}"></dx:SimpleButton>
+                                </StackPanel>
+                            </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup VerticalAlignment="Stretch">
                                 <dxlc:LayoutItem VerticalAlignment="Stretch">
-                                    <dxg:TreeViewControl ItemsSourceChanged="TreeViewControl_ItemsSourceChanged" IsEnabled="{Binding Running,Converter={StaticResource InvertBoolValueConverter1}}" ItemsSource="{Binding Path=Root.Nodes}" ChildNodesPath="Nodes" TreeViewFieldName="Name" ShowBorder="False" >
-                                        <dxg:TreeViewControl.NodeContentTemplate>
+                                    <ListBox ItemsSource="{Binding Path=CurrentNode.Nodes}" HorizontalContentAlignment="Stretch" IsEnabled="{Binding Running,Converter={StaticResource InvertBoolValueConverter1}}">
+                                        <ListBox.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel HorizontalAlignment="Stretch"/>
+                                            </ItemsPanelTemplate>
+                                        </ListBox.ItemsPanel>
+                                        <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <Button Content="{Binding Path=Value}" Command="{Binding Path=DataContext.Select,RelativeSource={RelativeSource AncestorType=dxg:TreeViewControl, Mode=FindAncestor}}" CommandParameter="{Binding Path=SelectedItem,RelativeSource={RelativeSource AncestorType=dxg:TreeViewControl, Mode=FindAncestor}}" BorderThickness="0" HorizontalAlignment="Left">
-                                                </Button>
+                                                <ListBoxItem Content="{Binding Path=Name}" HorizontalAlignment="Stretch">
+                                                    <dxmvvm:Interaction.Behaviors>
+                                                        <dxmvvm:EventToCommand EventName="MouseDoubleClick" Command="{Binding Path=DataContext.Select,RelativeSource={RelativeSource AncestorType=ListBox,Mode=FindAncestor}}" CommandParameter="{Binding Path=.}"></dxmvvm:EventToCommand>
+                                                    </dxmvvm:Interaction.Behaviors>
+                                                </ListBoxItem>
                                             </DataTemplate>
-                                        </dxg:TreeViewControl.NodeContentTemplate>
-                                    </dxg:TreeViewControl>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
                                 </dxlc:LayoutItem>
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup>
@@ -108,8 +122,7 @@
                     <dxlc:LayoutGroup>
                         <dxlc:LayoutGroup>
                             <dxlc:LayoutItem Label="日志" VerticalAlignment="Stretch" LabelPosition="Top" LabelHorizontalAlignment="Center">
-                                <ListBox VerticalAlignment="Stretch" ItemsSource="{Binding Path=Logs}">
-                                </ListBox>
+                                <ListBox uicommon:ListBoxBehavior.ScrollOnNewItem="true" VerticalAlignment="Stretch" ItemsSource="{Binding Path=Logs}"/>
                             </dxlc:LayoutItem>
                         </dxlc:LayoutGroup>
                     </dxlc:LayoutGroup>

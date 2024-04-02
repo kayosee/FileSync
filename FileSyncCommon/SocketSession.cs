@@ -7,7 +7,7 @@ namespace FileSyncCommon;
 
 public sealed class SocketSession
 {
-    private const int QueueSize = 32;
+    private const int QueueSize = 64;
     private volatile bool _disposed;
     private bool _encrypt;
     private byte _encryptKey;
@@ -73,9 +73,9 @@ public sealed class SocketSession
         try
         {
             _disposed = true;
-            _socket.Close();
             _pullSemaphore.ReleaseAll();
             _pushSemaphore.ReleaseAll();
+            _socket.Close();
         }
         catch (Exception e)
         {
@@ -157,8 +157,8 @@ public sealed class SocketSession
 
             if (_encrypt)
                 buffer.ForEach<byte>(f => f ^= _encryptKey);
-            int sent = _socket.Send(buffer);
-            return sent;
+            _socket.SendAsync(buffer);
+            return buffer.Length;
         }
         catch (Exception e)
         {

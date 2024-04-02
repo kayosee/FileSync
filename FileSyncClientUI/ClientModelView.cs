@@ -19,18 +19,16 @@ namespace FileSyncClientUI
     {
         private string _name;
         private PathNode _root;
+        private PathNode _currentNode;
+
         [JsonProperty]
         public string Name { get { return _name; } set { _name = value; OnPropertyChanged(nameof(Name)); } }
         public event PropertyChangedEventHandler? PropertyChanged;
         public ClientModelView()
         {
             Logs = new LimitQueue<string>(100);
-            Logs.CollectionChanged += (s, e) =>
-            {
-                if (Logs.Any())
-                    LastItem = Logs[^1];
-            };
             _root = new PathNode("");
+            _currentNode = _root;
             OnError += OnLogError;
             OnInformation += OnLogInformation;
             OnFolderListResponse += OnClientFolderListResponse;
@@ -38,7 +36,7 @@ namespace FileSyncClientUI
 
         private void OnLogInformation(string message)
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 Logs.Add(message);
                 OnPropertyChanged(nameof(Logs));
@@ -47,7 +45,7 @@ namespace FileSyncClientUI
 
         private void OnLogError(string message, Exception e)
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 Logs.Add(message);
                 OnPropertyChanged(nameof(Logs));
@@ -89,7 +87,7 @@ namespace FileSyncClientUI
         [JsonIgnore]
         public string? LastItem
         {
-            get;set;
+            get; set;
         }
         [JsonIgnore]
         public ICommand DoDisconnect
@@ -115,7 +113,7 @@ namespace FileSyncClientUI
                     if (!IsConnected)
                     {
                         Logs.Clear();
-                        _root = new PathNode("");
+                        _root.Nodes.Clear();
                         OnPropertyChanged(nameof(Logs));
                         if (Connect())
                         {
@@ -142,6 +140,7 @@ namespace FileSyncClientUI
                         var newNode = node.Append(dir);
                     }
                     OnPropertyChanged(nameof(Root));
+                    OnPropertyChanged(nameof(CurrentNode));
                 }
             });
         }
@@ -253,13 +252,25 @@ namespace FileSyncClientUI
                     if (f is PathNode)
                     {
                         var node = (PathNode)f;
-                        RemoteFolder = node.Path;
-                        if(!node.IsExpand)
+                        CurrentNode = node;
+                        if (!node.IsExpand)
                         {
                             QueryFolders(node.Path);
                         }
                     }
                 });
+            }
+        }
+        [JsonIgnore]
+        public PathNode CurrentNode
+        {
+            get { return _currentNode; }
+            set
+            {
+                _currentNode = value;
+                RemoteFolder = _currentNode.Path;
+                OnPropertyChanged(nameof(RemoteFolder));
+                OnPropertyChanged(nameof(CurrentNode));
             }
         }
         [JsonIgnore]
@@ -288,5 +299,32 @@ namespace FileSyncClientUI
         {
             get { return base.Running; }
         }
+
+        [JsonIgnore]
+        public ICommand GoUpper
+        {
+            get
+            {
+                return new SimpleCommand(f => true, f =>
+                {
+                    if (CurrentNode.Parent != null)
+                    {
+                        CurrentNode = CurrentNode.Parent;
+                    }
+                });
+            }
+        }
+        [JsonIgnore]
+        public ICommand GoHome
+        {
+            get
+            {
+                return new SimpleCommand(f => true, f =>
+                {
+                    CurrentNode = Root;
+                });
+            }
+        }
+
     }
 }

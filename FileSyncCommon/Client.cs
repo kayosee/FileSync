@@ -229,11 +229,11 @@ namespace FileSyncCommon
         }
         protected void OnSocketError(SocketSession socketSession, Exception e)
         {
+            Disconnect();
             while (!_socket.Connected)
             {
                 Connect(_host, _port, _encrypt, _encryptKey, _password);
             }
-            _request.Clear();
         }
         protected void OnConnected()
         {
@@ -269,15 +269,12 @@ namespace FileSyncCommon
         }
         public void Disconnect()
         {
-            if (IsConnected)
-            {
-                _request.Clear();
-                _session.Disconnect();
-                _authorized = false;
-                _running = false;
-                if (_timer != null)
-                    _timer.Dispose();
-            }
+            _request.Clear();
+            _session.Disconnect();
+            _authorized = false;
+            _running = false;
+            if (_timer != null)
+                _timer.Dispose();
         }
         public void Start(string remoteFolder)
         {
