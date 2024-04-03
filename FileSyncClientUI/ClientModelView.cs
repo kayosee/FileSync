@@ -63,7 +63,7 @@ namespace FileSyncClientUI
             {
                 return new SimpleCommand((f => true), f =>
                 {
-                    Start(RemoteFolder);
+                    Start(RemoteFolder, DaysBefore);
                     OnPropertyChanged(nameof(Running));
                     OnPropertyChanged(nameof(Runable));
                     OnPropertyChanged(nameof(Pauseable));
@@ -325,6 +325,17 @@ namespace FileSyncClientUI
                 });
             }
         }
-
+        public new int DaysBefore
+        {
+            get
+            {
+                return base.DaysBefore;
+            }
+            set
+            {
+                base.DaysBefore = value;
+                OnPropertyChanged(nameof(DaysBefore));
+            }
+        }
     }
 }

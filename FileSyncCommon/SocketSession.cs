@@ -17,7 +17,7 @@ public sealed class SocketSession
     private SemaphoreEx _pushSemaphore;
     private SemaphoreEx _pullSemaphore;
     private ConcurrentQueue<Packet> _packetQueue;
-    private ConcurrentDictionary<int, ConstructorInfo> _constructors;
+    private static ConcurrentDictionary<int, ConstructorInfo> _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
     public bool Encrypt { get => _encrypt; set => _encrypt = value; }
     public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
     public Socket Socket { get => _socket; set => _socket = value; }
@@ -32,8 +32,8 @@ public sealed class SocketSession
         _socket = socket;
         _encrypt = encrypt;
         _encryptKey = encryptKey;
+        OnSocketError += SocketSession_OnSocketError;
 
-        _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
         _packetQueue = new ConcurrentQueue<Packet>();
         _pushSemaphore = new SemaphoreEx(QueueSize, QueueSize);
         _pullSemaphore = new SemaphoreEx(0, QueueSize);
@@ -68,6 +68,12 @@ public sealed class SocketSession
         _consumer.Start();
 
     }
+
+    private void SocketSession_OnSocketError(SocketSession socketSession, Exception e)
+    {
+        Disconnect();
+    }
+
     public void Disconnect()
     {
         try

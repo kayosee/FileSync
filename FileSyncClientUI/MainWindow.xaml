@@ -55,6 +55,11 @@
                                 <dxlc:LayoutItem Label="同步间隔(分钟)">
                                     <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Interval,Mode=TwoWay}" MinValue="1"/>
                                 </dxlc:LayoutItem>
+                                <dxlc:LayoutGroup>
+                                    <dxlc:DataLayoutItem Label="只同步N天前">
+                                        <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=DaysBefore,Mode=TwoWay}" MinValue="0"/>
+                                    </dxlc:DataLayoutItem>
+                                </dxlc:LayoutGroup>
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup>
                                 <dxlc:LayoutGroup>

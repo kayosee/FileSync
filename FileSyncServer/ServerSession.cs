@@ -15,7 +15,6 @@ namespace FileSyncServer
         private string _folder;
         private int _id;
         private bool _disconnected;
-        private int _daysBefore;
         private int _total;
         private SocketSession _session;
         private string _password;
@@ -27,12 +26,11 @@ namespace FileSyncServer
 
         public int Id { get => _id; set => _id = value; }
 
-        public ServerSession(int id, string folder, string password, int daysBefore, Socket socket, bool encrypt, byte encryptKey)
+        public ServerSession(int id, string folder, string password, Socket socket, bool encrypt, byte encryptKey)
         {
             _id = id;
             _folder = folder;
             _password = password;
-            _daysBefore = daysBefore;
             _session = new SocketSession(socket, encrypt, encryptKey);
             _session.OnSocketError += OnSocketError;
             _session.OnReceivePackage += OnReceivePackage;
@@ -182,7 +180,7 @@ namespace FileSyncServer
 
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             var output = new List<PacketFileListDetailResponse>();
-            GetFiles(packet.ClientId, packet.RequestId, new DirectoryInfo(localPath), DateTime.Now.AddDays(0 - _daysBefore), ref output);
+            GetFiles(packet.ClientId, packet.RequestId, new DirectoryInfo(localPath), packet.DaysBefore <= 0 ? null : DateTime.Now.AddDays(0 - packet.DaysBefore), ref output);
 
             var fileListInfoResponse = new PacketFileListInfoResponse(packet.ClientId, packet.RequestId, output.LongCount(), output.Sum(f => f.FileLength));
             _session.SendPacket(fileListInfoResponse);
@@ -204,14 +202,14 @@ namespace FileSyncServer
                     OnDisconnect(this);
             }
         }
-        private void GetFiles(int clientId, long requestId, DirectoryInfo directory, DateTime createBefore, ref List<PacketFileListDetailResponse> result)
+        private void GetFiles(int clientId, long requestId, DirectoryInfo directory, DateTime? createBefore, ref List<PacketFileListDetailResponse> result)
         {
             try
             {
                 if (directory.Exists)
                 {
                     var query = from r in directory.GetFiles("*.*")
-                                where r.Extension != ".sync" && r.CreationTime >= createBefore
+                                where r.Extension != ".sync" && ((createBefore != null && r.CreationTime >= createBefore) || createBefore == null)
                                 select new PacketFileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0, r.FullName);
 
                     result.AddRange(query.Distinct());

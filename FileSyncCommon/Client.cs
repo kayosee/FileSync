@@ -11,6 +11,7 @@ namespace FileSyncCommon
         private int _clientId;
         private string _localFolder;
         private string _remoteFolder;
+        private int _daysBefore;
         private int _interval;
         private bool _encrypt;
         private byte _encryptKey;
@@ -40,6 +41,7 @@ namespace FileSyncCommon
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
         public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
         public bool Running { get => _running;}
+        public int DaysBefore { get => _daysBefore; set => _daysBefore = value; }
 
         public Client()
         {
@@ -279,7 +281,7 @@ namespace FileSyncCommon
             if (_timer != null)
                 _timer.Dispose();
         }
-        public void Start(string remoteFolder)
+        public void Start(string remoteFolder,int daysBefore)
         {
             if (!_authorized)
                 throw new UnauthorizedAccessException("尚未登录成功");
@@ -289,7 +291,7 @@ namespace FileSyncCommon
 
             _running = true;
             _remoteFolder = remoteFolder;
-
+            _daysBefore = daysBefore;
             if (_timer != null)
                 _timer.Dispose();
 
@@ -300,7 +302,7 @@ namespace FileSyncCommon
 
                 if (_request.IsEmpty && IsConnected)
                 {
-                    var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, _remoteFolder);
+                    var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, daysBefore, _remoteFolder);
                     _request.Increase(packet.RequestId, 0);
                     _session.SendPacket(packet);
                 }

@@ -11,12 +11,14 @@ public class PacketFileListRequest : PacketRequest
 {
     private string _path;
     private int _pathLength;
-
+    private int _daysBefore;
     public string Path { get => _path; set => _path = value; }
     public override long RequestId { get => _requestId; set => _requestId = value; }
+    public int DaysBefore { get => _daysBefore; set => _daysBefore = value; }
 
-    public PacketFileListRequest(int clientId, long requestId, string path) : base(PacketType.FileListRequest, clientId, requestId)
+    public PacketFileListRequest(int clientId, long requestId,int daysBefore, string path) : base(PacketType.FileListRequest, clientId, requestId)
     {
+        _daysBefore = daysBefore;
         _path = path;
     }
     public PacketFileListRequest(byte[] bytes) : base(bytes)
@@ -30,6 +32,7 @@ public class PacketFileListRequest : PacketRequest
         using (var stream = new ByteArrayStream(bytes))
         {
             _requestId = stream.ReadInt64();
+            _daysBefore = stream.ReadInt32();
             _pathLength = stream.ReadInt32();
             var buffer = new byte[_pathLength];
 
@@ -45,7 +48,7 @@ public class PacketFileListRequest : PacketRequest
         using (var stream = new ByteArrayStream())
         {
             stream.Write(_requestId);
-
+            stream.Write(_daysBefore);
             byte[] buffer = Encoding.UTF8.GetBytes(_path);
             _pathLength = buffer.Length;
             stream.Write(_pathLength);

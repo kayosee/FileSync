@@ -22,16 +22,14 @@ namespace FileSyncServer
         private bool _encrypt;
         private byte _encryptKey;
         private string _password;
-        private int _daysBefore;
         private const int AuthenticateTimeout = 5;
-        public Server(int port, string folder, bool encrypt, byte encryptKey, string password, int daysBefore)
+        public Server(int port, string folder, bool encrypt, byte encryptKey, string password)
         {
             _port = port;
             _folder = folder;
             _encrypt = encrypt;
             _encryptKey = encryptKey;
             _password = password;
-            _daysBefore = daysBefore;
         }
         public int Port { get => _port; set => _port = value; }
         public string Folder { get => _folder; set => _folder = value; }
@@ -49,7 +47,7 @@ namespace FileSyncServer
                     Log.Information("新连接加入");
 
                     var clientId = _sessions.Count;
-                    var session = new ServerSession(clientId, _folder,_password, _daysBefore, client, _encrypt, _encryptKey);
+                    var session = new ServerSession(clientId, _folder,_password, client, _encrypt, _encryptKey);
                     session.OnAuthenticate += Session_OnAuthenticate;
                     session.OnDisconnect += Session_OnDisconnect;
                 }
