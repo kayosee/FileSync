@@ -20,7 +20,7 @@ namespace FileSyncCommon
         public int Current { get { return _current; } }
         public int Release()
         {
-            if (_current == _max)
+            if (_current >= _max)
                 return 0;
 
             int n = _semaphore.Release();
