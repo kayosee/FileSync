@@ -7,7 +7,7 @@ namespace FileSyncCommon;
 
 public sealed class SocketSession
 {
-    private const int QueueSize = 64;
+    private int QueueSize = Environment.ProcessorCount;
     private volatile bool _disposed;
     private bool _encrypt;
     private byte _encryptKey;
@@ -30,9 +30,9 @@ public sealed class SocketSession
     public SocketSession(Socket socket, bool encrypt, byte encryptKey)
     {
         _socket = socket;
+        _socket.NoDelay = true;
         _encrypt = encrypt;
         _encryptKey = encryptKey;
-        OnSocketError += SocketSession_OnSocketError;
 
         _packetQueue = new ConcurrentQueue<Packet>();
         _pushSemaphore = new SemaphoreEx(QueueSize, QueueSize);
@@ -41,9 +41,9 @@ public sealed class SocketSession
         {
             while (!_disposed)
             {
-                var packet = ReadPacket();                
+                var packet = ReadPacket();
                 if (packet != null && _pushSemaphore.Wait())
-                {                    
+                {
                     _packetQueue.Enqueue(packet);//1.顺序不能乱
                     _pullSemaphore.Release();//2.一定要先入队列再唤醒处理线程！
                 }
@@ -59,8 +59,7 @@ public sealed class SocketSession
                 if (_pullSemaphore.Wait() && _packetQueue.TryDequeue(out var packet))
                 {
                     _pushSemaphore.Release();
-                    if (OnReceivePackage != null)
-                        OnReceivePackage(packet);
+                    OnReceivePackage?.Invoke(packet);
                 }
             }
         });
@@ -69,9 +68,13 @@ public sealed class SocketSession
 
     }
 
-    private void SocketSession_OnSocketError(SocketSession socketSession, Exception e)
+    private void DoSocketError(SocketSession socketSession, Exception e)
     {
+        if (_disposed)
+            return;
+
         Disconnect();
+        OnSocketError?.Invoke(this, e);
     }
 
     public void Disconnect()
@@ -101,8 +104,7 @@ public sealed class SocketSession
         }
         catch (Exception e)
         {
-            if (!_disposed && OnSocketError != null)
-                OnSocketError(this, e);
+            DoSocketError(this, e);
         }
     }
     public Packet? ReceivePacket(TimeSpan? timeout = null)
@@ -118,8 +120,7 @@ public sealed class SocketSession
         }
         catch (Exception e)
         {
-            if (!_disposed && OnSocketError != null)
-                OnSocketError(this, e);
+            DoSocketError(this, e);
             return null;
         }
     }
@@ -142,8 +143,7 @@ public sealed class SocketSession
         }
         catch (Exception e)
         {
-            if (!_disposed && OnSocketError != null)
-                OnSocketError(this, e);
+            DoSocketError(this, e);
             return false;
         }
     }
@@ -168,8 +168,7 @@ public sealed class SocketSession
         }
         catch (Exception e)
         {
-            if (!_disposed && OnSocketError != null)
-                OnSocketError(this, e);
+            DoSocketError(this, e);
             return 0;
         }
     }
@@ -183,8 +182,7 @@ public sealed class SocketSession
         byte dataType = buffer[0];
         if (!Enum.IsDefined(typeof(PacketType), (int)dataType))
         {
-            if (OnDataError != null)
-                OnDataError.Invoke(this, "数据错误，无效数据包类型: " + BitConverter.ToString(buffer));
+            OnDataError?.Invoke(this, "数据错误，无效数据包类型: " + BitConverter.ToString(buffer));
             return null;
         }
 
@@ -206,8 +204,7 @@ public sealed class SocketSession
 
         if (!Crc32Algorithm.IsValidWithCrcAtEnd(whole.ToArray()))
         {
-            if (OnDataError != null)
-                OnDataError.Invoke(this, "Crc检验出错");
+            OnDataError?.Invoke(this, "Crc检验出错");
             return null;
         }
 

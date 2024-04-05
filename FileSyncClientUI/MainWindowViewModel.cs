@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
@@ -53,12 +54,13 @@ namespace FileSyncClientUI
 
         private void ClientPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(ClientModelView.Logs))
-                return;
-
-            var config = System.IO.Path.Combine(Environment.CurrentDirectory, "config.json");
-            var data = JsonConvert.SerializeObject(Clients);
-            File.WriteAllText(config, data);
+            var ignore = sender.GetType().GetProperty(e.PropertyName).GetCustomAttribute(typeof(JsonIgnoreAttribute));
+            if (ignore == null)
+            {
+                var config = System.IO.Path.Combine(Environment.CurrentDirectory, "config.json");
+                var data = JsonConvert.SerializeObject(Clients);
+                File.WriteAllText(config, data);
+            }
         }
 
         public ICommand Show

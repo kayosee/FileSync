@@ -23,7 +23,12 @@ namespace FileSyncCommon
         private Socket _socket;
         private volatile bool _running;
         public delegate void FolderListResponseHandler(PacketFolderListResponse response);
+        public delegate void DisconnectedHandler();
+        public delegate void LoginHandler();        
+
         public event FolderListResponseHandler OnFolderListResponse;
+        public event DisconnectedHandler OnDisconnected;
+        public event LoginHandler OnLogin;
         public string Host { get => _host; set => _host = value; }
         public int Port { get => _port; set => _port = value; }
         public int ClientId { get => _clientId; set => _clientId = value; }
@@ -97,6 +102,7 @@ namespace FileSyncCommon
                 LogInformation("验证成功");
                 this._clientId = packet.ClientId;
                 this._authorized = true;
+                OnLogin?.Invoke();
             }
         }
         private void DoFileContentInfoResponse(PacketFileContentInfoResponse packet)
@@ -280,6 +286,8 @@ namespace FileSyncCommon
             _running = false;
             if (_timer != null)
                 _timer.Dispose();
+
+            OnDisconnected?.Invoke();
         }
         public void Start(string remoteFolder,int daysBefore)
         {

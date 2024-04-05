@@ -32,6 +32,24 @@ namespace FileSyncClientUI
             OnError += OnLogError;
             OnInformation += OnLogInformation;
             OnFolderListResponse += OnClientFolderListResponse;
+            OnLogin += OnClientLogin;
+            OnDisconnected += OnClientDisconnected;
+        }
+
+        private void OnClientDisconnected()
+        {
+            OnPropertyChanged(nameof(Runable));
+            OnPropertyChanged(nameof(Pauseable));
+            OnPropertyChanged(nameof(Running));
+            OnPropertyChanged(nameof(IsConnected));
+        }
+
+        private void OnClientLogin()
+        {
+            OnPropertyChanged(nameof(Runable));
+            OnPropertyChanged(nameof(Pauseable));
+            OnPropertyChanged(nameof(Running));
+            OnPropertyChanged(nameof(IsConnected));
         }
 
         private void OnLogInformation(string message)
