@@ -14,9 +14,7 @@ public sealed class SocketSession
     private Thread _producer;
     private Thread _consumer;
     private Socket _socket;
-    private SemaphoreEx _pushSemaphore;
-    private SemaphoreEx _pullSemaphore;
-    private ConcurrentQueue<Packet> _packetQueue;
+    private RestrictQueue<Packet> _packetQueue;
     private static ConcurrentDictionary<int, ConstructorInfo> _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
     public bool Encrypt { get => _encrypt; set => _encrypt = value; }
     public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
@@ -34,18 +32,15 @@ public sealed class SocketSession
         _encrypt = encrypt;
         _encryptKey = encryptKey;
 
-        _packetQueue = new ConcurrentQueue<Packet>();
-        _pushSemaphore = new SemaphoreEx(QueueSize, QueueSize);
-        _pullSemaphore = new SemaphoreEx(0, QueueSize);
+        _packetQueue = new RestrictQueue<Packet>(Environment.ProcessorCount);
         _producer = new Thread((s) =>
         {
             while (!_disposed)
             {
                 var packet = ReadPacket();
-                if (packet != null && _pushSemaphore.Wait())
+                if (packet != null)
                 {
                     _packetQueue.Enqueue(packet);//1.顺序不能乱
-                    _pullSemaphore.Release();//2.一定要先入队列再唤醒处理线程！
                 }
             }
         });
@@ -56,9 +51,8 @@ public sealed class SocketSession
         {
             while (!_disposed)
             {
-                if (_pullSemaphore.Wait() && _packetQueue.TryDequeue(out var packet))
+                if (_packetQueue.Dequeue(out var packet))
                 {
-                    _pushSemaphore.Release();
                     OnReceivePackage?.Invoke(packet);
                 }
             }
@@ -82,8 +76,7 @@ public sealed class SocketSession
         try
         {
             _disposed = true;
-            _pullSemaphore.ReleaseAll();
-            _pushSemaphore.ReleaseAll();
+            _packetQueue.Dispose();
             _socket.Close();
         }
         catch (Exception e)
