@@ -81,7 +81,7 @@ namespace FileSyncClientUI
             {
                 return new SimpleCommand((f => true), f =>
                 {
-                    Start(RemoteFolder, DaysBefore);
+                    Start(LocalFolder, RemoteFolder, DaysBefore, Interval);
                     OnPropertyChanged(nameof(Running));
                     OnPropertyChanged(nameof(Runable));
                     OnPropertyChanged(nameof(Pauseable));
@@ -133,7 +133,7 @@ namespace FileSyncClientUI
                         Logs.Clear();
                         _root.Nodes.Clear();
                         OnPropertyChanged(nameof(Logs));
-                        if (Connect())
+                        if (Reconnect())
                         {
                             OnPropertyChanged(nameof(IsConnected));
                             QueryFolders(_root.Path);

@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace FileSyncCommon
 {
-    public class Client : Logging
+    public class Client : Logging, IDisposable
     {
         private string _host;
         private int _port;
@@ -24,7 +24,7 @@ namespace FileSyncCommon
         private volatile bool _running;
         public delegate void FolderListResponseHandler(PacketFolderListResponse response);
         public delegate void DisconnectedHandler();
-        public delegate void LoginHandler();        
+        public delegate void LoginHandler();
 
         public event FolderListResponseHandler OnFolderListResponse;
         public event DisconnectedHandler OnDisconnected;
@@ -45,19 +45,8 @@ namespace FileSyncCommon
         public bool Encrypt { get => _encrypt; set => _encrypt = value; }
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
         public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
-        public bool Running { get => _running;}
+        public bool Running { get => _running; }
         public int DaysBefore { get => _daysBefore; set => _daysBefore = value; }
-
-        public Client()
-        {
-        }
-        public Client(string localFolder, string remoteFolder, int interval)
-        {
-            _localFolder = localFolder;
-            _remoteFolder = remoteFolder;
-            _interval = interval;
-            _running = false;
-        }
         private void OnReceivePackage(Packet packet)
         {
             if (packet != null)
@@ -254,7 +243,7 @@ namespace FileSyncCommon
             var packet = new PacketAuthenticateRequest(0, 0, _password);
             _session.SendPacket(packet);
         }
-        public bool Connect()
+        public bool Reconnect()
         {
             return Connect(_host, _port, _encrypt, _encryptKey, _password);
         }
@@ -283,23 +272,22 @@ namespace FileSyncCommon
             _request.Clear();
             _session.Disconnect();
             _authorized = false;
-            _running = false;
-            if (_timer != null)
-                _timer.Dispose();
-
             OnDisconnected?.Invoke();
         }
-        public void Start(string remoteFolder,int daysBefore)
+        public void Start(string localFolder, string remoteFolder, int daysBefore, int interval)
         {
             if (!_authorized)
                 throw new UnauthorizedAccessException("尚未登录成功");
 
-            if(string.IsNullOrEmpty(remoteFolder))
+            if (string.IsNullOrEmpty(remoteFolder))
                 throw new ArgumentNullException(nameof(remoteFolder));
 
             _running = true;
+            _localFolder = localFolder;
             _remoteFolder = remoteFolder;
             _daysBefore = daysBefore;
+            _interval = interval;
+            _request.Clear();
             if (_timer != null)
                 _timer.Dispose();
 
@@ -325,5 +313,16 @@ namespace FileSyncCommon
             if (IsConnected)
                 _session.SendPacket(new PacketFolderListRequest(_clientId, DateTime.Now.Ticks, root));
         }
+        public void Dispose()
+        {
+            if (IsConnected)
+            {
+                Disconnect();
+                _session.Disconnect();
+                if (_timer != null)
+                    _timer.Dispose();
+            }
+        }
+
     }
 }

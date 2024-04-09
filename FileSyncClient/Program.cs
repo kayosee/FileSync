@@ -20,7 +20,7 @@ namespace FileSyncClient
 
             try
             {
-                var client = new Client(localFolder, remoteFolder, interval);
+                var client = new Client();
                 client.Connect(ip, int.Parse(port), encrypt, encryptKey, password);
             }
             catch (Exception e)

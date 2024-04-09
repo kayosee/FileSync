@@ -6,25 +6,28 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon
 {
-    public class RestrictQueue<T> : IDisposable
+    public class FixedLengthQueue<T> : IDisposable
     {
         private int _max;
         private Queue<T> _queue;
         private SemaphoreSlim _push;
         private SemaphoreSlim _pull;
-        public RestrictQueue(int max)
+        public FixedLengthQueue(int maxLength)
         {
-            _max = max;
+            _max = maxLength;
             _queue = new Queue<T>();
-            _push = new SemaphoreSlim(max, max);
-            _pull = new SemaphoreSlim(0, max);
+            _push = new SemaphoreSlim(maxLength, maxLength);
+            _pull = new SemaphoreSlim(0, maxLength);
         }
-        public bool Dequeue(out T? item)
+        public bool Dequeue(out T item)
         {
             try
             {
                 _pull.Wait();
-                item = _queue.Dequeue();
+                lock (this)
+                {
+                    item = _queue.Dequeue();
+                }
                 _push.Release();
                 return true;
             }
@@ -51,7 +54,10 @@ namespace FileSyncCommon
             try
             {
                 _push.Wait();
-                _queue.Enqueue(item);
+                lock (this)
+                {
+                    _queue.Enqueue(item);
+                }
                 _pull.Release();
                 return true;
             }
