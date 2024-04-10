@@ -220,7 +220,7 @@ namespace FileSyncServer
                         GetFiles(clientId, requestId, subDir, createBefore, ref result);
 
                         query = from r in subDir.GetFiles("*.*")
-                                where r.Extension != ".sync"
+                                where r.Extension != ".sync" && ((createBefore != null && r.CreationTime >= createBefore) || createBefore == null)
                                 select new PacketFileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0, r.FullName);
 
                         result.AddRange(query.Distinct());

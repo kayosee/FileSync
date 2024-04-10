@@ -127,7 +127,11 @@
                     <dxlc:LayoutGroup>
                         <dxlc:LayoutGroup>
                             <dxlc:LayoutItem Label="日志" VerticalAlignment="Stretch" LabelPosition="Top" LabelHorizontalAlignment="Center">
-                                <ListBox uicommon:ListBoxBehavior.ScrollOnNewItem="true" VerticalAlignment="Stretch" ItemsSource="{Binding Path=Logs}"/>
+                                <TextBox Name="log" VerticalAlignment="Stretch" Text="{Binding Logs}" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" CaretIndex="99999999">
+                                    <dxmvvm:Interaction.Behaviors>
+                                        <dxmvvm:EventToCommand EventName="TextChanged" Command="{Binding LogChange}" CommandParameter="{Binding ElementName=log}"/>
+                                    </dxmvvm:Interaction.Behaviors>
+                                </TextBox>
                             </dxlc:LayoutItem>
                         </dxlc:LayoutGroup>
                     </dxlc:LayoutGroup>

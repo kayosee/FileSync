@@ -20,13 +20,14 @@ namespace FileSyncClientUI
         private string _name;
         private PathNode _root;
         private PathNode _currentNode;
+        private LimitQueue<string> _logs;
 
         [JsonProperty]
         public string Name { get { return _name; } set { _name = value; OnPropertyChanged(nameof(Name)); } }
         public event PropertyChangedEventHandler? PropertyChanged;
         public ClientModelView()
         {
-            Logs = new LimitQueue<string>(100);
+            _logs = new LimitQueue<string>(100);
             _root = new PathNode("");
             _currentNode = _root;
             OnError += OnLogError;
@@ -56,7 +57,7 @@ namespace FileSyncClientUI
         {
             System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
             {
-                Logs.Add(message);
+                _logs.Add(message);
                 OnPropertyChanged(nameof(Logs));
             });
         }
@@ -65,7 +66,7 @@ namespace FileSyncClientUI
         {
             System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
             {
-                Logs.Add(message);
+                _logs.Add(message);
                 OnPropertyChanged(nameof(Logs));
             });
         }
@@ -130,9 +131,8 @@ namespace FileSyncClientUI
                 {
                     if (!IsConnected)
                     {
-                        Logs.Clear();
+                        _logs.Clear();
                         _root.Nodes.Clear();
-                        OnPropertyChanged(nameof(Logs));
                         if (Reconnect())
                         {
                             OnPropertyChanged(nameof(IsConnected));
@@ -243,7 +243,10 @@ namespace FileSyncClientUI
             }
         }
         [JsonIgnore]
-        public LimitQueue<string> Logs { get; set; }
+        public string Logs
+        {
+            get => string.Join(Environment.NewLine, _logs);
+        }
 
         [JsonIgnore]
         public ICommand SelectLocalFolder
@@ -353,6 +356,24 @@ namespace FileSyncClientUI
             {
                 base.DaysBefore = value;
                 OnPropertyChanged(nameof(DaysBefore));
+            }
+        }
+        [JsonIgnore]
+        public ICommand LogChange
+        {
+            get
+            {
+                return new SimpleCommand((f) => true, f =>
+                {
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+                    {
+                        if (f is System.Windows.Controls.TextBox box)
+                        {
+                            box.CaretIndex = box.Text.Length;
+                            box.ScrollToEnd();
+                        }
+                    });
+                });
             }
         }
     }

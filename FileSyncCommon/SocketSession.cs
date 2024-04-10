@@ -11,12 +11,10 @@ namespace FileSyncCommon
         private volatile bool _disposed;
         private bool _encrypt;
         private byte _encryptKey;
-        private Thread _reader;
+        private Thread _producer;
         private Thread _consumer;
-        private Thread _writer;
         private Socket _socket;
-        private FixedLengthQueue<Packet> _inQueue;
-        private FixedLengthQueue<Packet> _outQueue;
+        private FixedLengthQueue<Packet> _packetQueue;
         private static ConcurrentDictionary<int, ConstructorInfo> _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
         public bool Encrypt { get => _encrypt; set => _encrypt = value; }
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
@@ -30,31 +28,30 @@ namespace FileSyncCommon
         public SocketSession(Socket socket, bool encrypt, byte encryptKey)
         {
             _socket = socket;
-            _socket.ReceiveBufferSize = 1024 * 1024 * 1024;
+            _socket.ReceiveBufferSize = (int)Math.Pow(1024, 3);//接收缓存区太小，会产生ZEROWINDOW，导致后面的Send阻塞
             _encrypt = encrypt;
             _encryptKey = encryptKey;
 
-            _inQueue = new FixedLengthQueue<Packet>(Environment.ProcessorCount * 32);
-            _outQueue = new FixedLengthQueue<Packet>(Environment.ProcessorCount);
-            _reader = new Thread((s) =>
-            {
-                while (!_disposed)
+            _packetQueue = new FixedLengthQueue<Packet>(Environment.ProcessorCount);
+            _producer = new Thread((s) =>
                 {
-                    var packet = ReadPacket();
-                    if (packet != null)
+                    while (!_disposed)
                     {
-                        _inQueue.Enqueue(packet);//1.顺序不能乱
+                        var packet = ReadPacket();
+                        if (packet != null)
+                        {
+                            _packetQueue.Enqueue(packet);
+                        }
                     }
-                }
-            });
-            _reader.Name = "producer-" + socket.Handle;
-            _reader.Start();
+                });
+            _producer.Name = "producer-" + socket.Handle;
+            _producer.Start();
 
             _consumer = new Thread((s) =>
             {
                 while (!_disposed)
                 {
-                    if (_inQueue.Dequeue(out var packet))
+                    if (_packetQueue.Dequeue(out var packet))
                     {
                         OnReceivePackage?.Invoke(packet);
                     }
@@ -62,26 +59,6 @@ namespace FileSyncCommon
             });
             _consumer.Name = "consumer-" + socket.Handle;
             _consumer.Start();
-
-            _writer = new Thread((s) =>
-            {
-                while (!_disposed)
-                {
-                    if (_outQueue.Dequeue(out var packet))
-                    {
-                        try
-                        {
-                            Write(packet.GetBytes());
-                        }
-                        catch (Exception e)
-                        {
-                            DoSocketError(this, e);
-                        }
-                    }
-                }
-            });
-            _writer.Name = "writer-" + socket.Handle;
-            _writer.Start();
         }
         private void DoSocketError(SocketSession socketSession, Exception e)
         {
@@ -96,17 +73,23 @@ namespace FileSyncCommon
             try
             {
                 _disposed = true;
-                _inQueue.Dispose();
-                _outQueue.Dispose();
+                _packetQueue.Dispose();
                 _socket.Close();
             }
-            catch (Exception e)
+            catch (Exception)
             {
             }
         }
         public void SendPacket(Packet packet)
         {
-            _outQueue.Enqueue(packet);
+            try
+            {
+                Write(packet.GetBytes());
+            }
+            catch (Exception e)
+            {
+                DoSocketError(this, e);
+            }
         }
         private bool Read(int length, out byte[] buffer)
         {
@@ -166,7 +149,7 @@ namespace FileSyncCommon
             byte dataType = buffer[0];
             if (!Enum.IsDefined(typeof(PacketType), (int)dataType))
             {
-                OnDataError?.Invoke(this, "数据错误，无效数据包类型: " + BitConverter.ToString(buffer));
+                OnDataError?.Invoke(this, "数据错误，无效数据包类型: " + dataType);
                 return null;
             }
 
@@ -174,6 +157,11 @@ namespace FileSyncCommon
                 return null;
 
             var dataLength = BitConverter.ToInt32(buffer);
+            if (dataLength <= 0)
+            {
+                OnDataError?.Invoke(this, "数据错误，无效数据包长度: " + dataLength);
+                return null;
+            }
 
             if (!ReadAppend(Packet.Int32Size, out buffer, ref whole))
                 return null;

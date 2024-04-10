@@ -71,6 +71,7 @@ namespace FileSyncClientUI
                 {
                     System.Windows.Application.Current.MainWindow.Show();
                     SystemCommands.RestoreWindow(System.Windows.Application.Current.MainWindow);
+                    System.Windows.Application.Current.MainWindow.Activate();
                 });
             }
         }
