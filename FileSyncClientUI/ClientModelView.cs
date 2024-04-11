@@ -82,10 +82,17 @@ namespace FileSyncClientUI
             {
                 return new SimpleCommand((f => true), f =>
                 {
-                    Start(LocalFolder, RemoteFolder, DaysBefore, Interval);
-                    OnPropertyChanged(nameof(Running));
-                    OnPropertyChanged(nameof(Runable));
-                    OnPropertyChanged(nameof(Pauseable));
+                    try
+                    {
+                        Start(LocalFolder, RemoteFolder, DaysBefore, Interval);
+                        OnPropertyChanged(nameof(Running));
+                        OnPropertyChanged(nameof(Runable));
+                        OnPropertyChanged(nameof(Pauseable));
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Windows.MessageBox.Show(ex.ToString());
+                    }
                 });
             }
         }
@@ -376,5 +383,6 @@ namespace FileSyncClientUI
                 });
             }
         }
+        public int DeleteFileDaysBefore { get; set; }
     }
 }

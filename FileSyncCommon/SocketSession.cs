@@ -91,20 +91,28 @@ namespace FileSyncCommon
                 DoSocketError(this, e);
             }
         }
-        private bool Read(int length, out byte[] buffer)
+        private bool Read(int length, out List<byte> result)
         {
-            buffer = new byte[length];
+            const int MaxBufferSize = 1024;
+            var bufferSize = length > MaxBufferSize ? MaxBufferSize : length;
+            var buffer = new byte[bufferSize];
+            result = new List<byte>();
             try
             {
                 var total = 0;
                 while (total < length)
                 {
-                    total += _socket.Receive(buffer, total, length - total, SocketFlags.None);
+                    var need = length - total > bufferSize ? bufferSize : length - total;
+                    var nret = _socket.Receive(buffer, 0, need, SocketFlags.None);
+                    if (nret > 0)
+                        result.AddRange(buffer.Take(nret));
+                    total += nret;
                 }
 
                 if (_encrypt)
                 {
-                    buffer.ForEach<byte>(f => f ^= _encryptKey);
+                    for (int i = 0; i < result.Count; i++)
+                        result[i] ^= _encryptKey;
                 }
                 return true;
             }
@@ -114,7 +122,7 @@ namespace FileSyncCommon
                 return false;
             }
         }
-        private bool ReadAppend(int length, out byte[] buffer, ref List<byte> appender)
+        private bool ReadAppend(int length, out List<byte> buffer, ref List<byte> appender)
         {
             var ok = (Read(length, out buffer));
             if (ok)
@@ -143,7 +151,7 @@ namespace FileSyncCommon
         {
             var whole = new List<byte>();
 
-            if (!ReadAppend(1, out var buffer, ref whole))
+            if (!ReadAppend(1, out var buffer, ref whole))//dataType
                 return null;
 
             byte dataType = buffer[0];
@@ -153,25 +161,25 @@ namespace FileSyncCommon
                 return null;
             }
 
-            if (!ReadAppend(Packet.Int32Size, out buffer, ref whole))
+            if (!ReadAppend(Packet.Int32Size, out buffer, ref whole))//dataLength
                 return null;
 
-            var dataLength = BitConverter.ToInt32(buffer);
+            var dataLength = BitConverter.ToInt32(buffer.ToArray());
             if (dataLength <= 0)
             {
                 OnDataError?.Invoke(this, "数据错误，无效数据包长度: " + dataLength);
                 return null;
             }
 
-            if (!ReadAppend(Packet.Int32Size, out buffer, ref whole))
+            if (!ReadAppend(Packet.Int32Size, out buffer, ref whole))//clientID
                 return null;
 
-            var clientId = BitConverter.ToInt32(buffer);
+            var clientId = BitConverter.ToInt32(buffer.ToArray());
 
-            if (!ReadAppend(dataLength, out buffer, ref whole))
+            if (!ReadAppend(dataLength, out _, ref whole))//包数据内容
                 return null;
 
-            if (!ReadAppend(sizeof(uint), out buffer, ref whole))//checksum
+            if (!ReadAppend(sizeof(uint), out _, ref whole))//checksum
                 return null;
 
             if (!Crc32Algorithm.IsValidWithCrcAtEnd(whole.ToArray()))
