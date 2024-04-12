@@ -130,14 +130,18 @@ public class FileOperator
         FileInfo fi = new FileInfo(path);
         fi.LastWriteTime = DateTime.FromBinary(lastWriteTime);
     }
-    public static void DeleteOldFile(string path,DateTime dateBefore)
+    public static void DeleteOldFile(string path, DateTime dateBefore)
     {
         DirectoryInfo directoryInfo = new DirectoryInfo(path);
-        if (directoryInfo.Exists)
+        if (!directoryInfo.Exists)
             throw new DirectoryNotFoundException(path);
 
         var files = directoryInfo.GetFiles("*.*").Where(f => f.CreationTime <= dateBefore);
         foreach (var file in files)
             file.Delete();
+
+        var dirs = directoryInfo.GetDirectories();
+        foreach (var dir in dirs)
+            DeleteOldFile(dir.FullName, dateBefore);
     }
 }

@@ -54,7 +54,11 @@ namespace FileSyncClientUI
 
         private void ClientPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            var ignore = sender.GetType().GetProperty(e.PropertyName).GetCustomAttribute(typeof(JsonIgnoreAttribute));
+            if (sender == null)
+                return;
+
+            Type type = sender.GetType();
+            Attribute? ignore = type.GetProperty(e.PropertyName).GetCustomAttribute(typeof(JsonIgnoreAttribute));
             if (ignore == null)
             {
                 var config = System.IO.Path.Combine(Environment.CurrentDirectory, "config.json");
@@ -84,7 +88,7 @@ namespace FileSyncClientUI
                 {
                     Clients.Remove(f as ClientModelView);
                     OnPropertyChanged(nameof(Clients));
-                    ClientPropertyChanged(null, null);
+                    ClientPropertyChanged(this, new PropertyChangedEventArgs(nameof(Clients)));
                 });
             }
         }

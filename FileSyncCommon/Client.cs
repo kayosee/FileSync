@@ -11,7 +11,7 @@ namespace FileSyncCommon
         private int _clientId;
         private string _localFolder;
         private string _remoteFolder;
-        private int _daysBefore;
+        private int _syncDaysBefore;
         private int _interval;
         private bool _encrypt;
         private byte _encryptKey;
@@ -22,6 +22,8 @@ namespace FileSyncCommon
         private SocketSession _session;
         private Socket _socket;
         private volatile bool _running;
+        private int _deleteDaysBefore;
+
         public delegate void FolderListResponseHandler(PacketFolderListResponse response);
         public delegate void DisconnectedHandler();
         public delegate void LoginHandler();
@@ -46,7 +48,9 @@ namespace FileSyncCommon
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
         public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
         public bool Running { get => _running; }
-        public int DaysBefore { get => _daysBefore; set => _daysBefore = value; }
+        public int SyncDaysBefore { get => _syncDaysBefore; set => _syncDaysBefore = value; }
+        public int DeleteDaysBefore { get => _deleteDaysBefore; set => _deleteDaysBefore = value; }
+
         private void OnReceivePackage(Packet packet)
         {
             if (packet != null)
@@ -274,7 +278,7 @@ namespace FileSyncCommon
             _authorized = false;
             OnDisconnected?.Invoke();
         }
-        public void Start(string localFolder, string remoteFolder, int daysBefore, int interval)
+        public void Start(string localFolder, string remoteFolder, int syncDaysBefore,int deleteDaysBefore, int interval)
         {
             if (!_authorized)
                 throw new UnauthorizedAccessException("尚未登录成功");
@@ -285,7 +289,8 @@ namespace FileSyncCommon
             _running = true;
             _localFolder = localFolder;
             _remoteFolder = remoteFolder;
-            _daysBefore = daysBefore;
+            _syncDaysBefore = syncDaysBefore;
+            _deleteDaysBefore = deleteDaysBefore;
             _interval = interval;
             _request.Clear();
             if (_timer != null)
@@ -296,11 +301,15 @@ namespace FileSyncCommon
                 if (!_running)
                     return;
 
+                if (_deleteDaysBefore > 0)
+                    FileOperator.DeleteOldFile(localFolder, DateTime.Now - TimeSpan.FromDays(_deleteDaysBefore));
+
                 if (_request.IsEmpty && IsConnected)
                 {
-                    var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, daysBefore, _remoteFolder);
+                    var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, syncDaysBefore, _remoteFolder);
                     _request.Increase(packet.RequestId, 0);
                     _session.SendPacket(packet);
+
                 }
             }, null, 0, (int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
         }

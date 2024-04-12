@@ -20,14 +20,13 @@ namespace FileSyncClientUI
         private string _name;
         private PathNode _root;
         private PathNode _currentNode;
-        private LimitQueue<string> _logs;
-
+        private UILog _logs;
         [JsonProperty]
         public string Name { get { return _name; } set { _name = value; OnPropertyChanged(nameof(Name)); } }
         public event PropertyChangedEventHandler? PropertyChanged;
         public ClientModelView()
         {
-            _logs = new LimitQueue<string>(100);
+            _logs = new UILog(100);
             _root = new PathNode("");
             _currentNode = _root;
             OnError += OnLogError;
@@ -59,6 +58,7 @@ namespace FileSyncClientUI
             {
                 _logs.Add(message);
                 OnPropertyChanged(nameof(Logs));
+                
             });
         }
 
@@ -84,7 +84,7 @@ namespace FileSyncClientUI
                 {
                     try
                     {
-                        Start(LocalFolder, RemoteFolder, DaysBefore, Interval);
+                        Start(LocalFolder, RemoteFolder, SyncDaysBefore, DeleteDaysBefore, Interval);
                         OnPropertyChanged(nameof(Running));
                         OnPropertyChanged(nameof(Runable));
                         OnPropertyChanged(nameof(Pauseable));
@@ -151,7 +151,6 @@ namespace FileSyncClientUI
                 });
             }
         }
-
         private void OnClientFolderListResponse(PacketFolderListResponse response)
         {
             var node = _root.FindChild(response.Path, 0);
@@ -250,10 +249,7 @@ namespace FileSyncClientUI
             }
         }
         [JsonIgnore]
-        public string Logs
-        {
-            get => string.Join(Environment.NewLine, _logs);
-        }
+        public string Logs => _logs.ToString();
 
         [JsonIgnore]
         public ICommand SelectLocalFolder
@@ -353,36 +349,29 @@ namespace FileSyncClientUI
                 });
             }
         }
-        public new int DaysBefore
+        public new int SyncDaysBefore
         {
             get
             {
-                return base.DaysBefore;
+                return base.SyncDaysBefore;
             }
             set
             {
-                base.DaysBefore = value;
-                OnPropertyChanged(nameof(DaysBefore));
+                base.SyncDaysBefore = value;
+                OnPropertyChanged(nameof(SyncDaysBefore));
             }
         }
-        [JsonIgnore]
-        public ICommand LogChange
+        public new int DeleteDaysBefore
         {
             get
             {
-                return new SimpleCommand((f) => true, f =>
-                {
-                    System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
-                    {
-                        if (f is System.Windows.Controls.TextBox box)
-                        {
-                            box.CaretIndex = box.Text.Length;
-                            box.ScrollToEnd();
-                        }
-                    });
-                });
+                return base.DeleteDaysBefore;
+            }
+            set
+            {
+                base.DeleteDaysBefore = value;
+                OnPropertyChanged(nameof(DeleteDaysBefore));
             }
         }
-        public int DeleteFileDaysBefore { get; set; }
     }
 }
