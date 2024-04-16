@@ -15,7 +15,7 @@ using UICommon;
 
 namespace FileSyncClientUI
 {
-    public class ClientModelView : Client, INotifyPropertyChanged
+    public class ClientViewModel : Client, INotifyPropertyChanged
     {
         private string _name;
         private PathNode _root;
@@ -24,7 +24,7 @@ namespace FileSyncClientUI
         [JsonProperty]
         public string Name { get { return _name; } set { _name = value; OnPropertyChanged(nameof(Name)); } }
         public event PropertyChangedEventHandler? PropertyChanged;
-        public ClientModelView()
+        public ClientViewModel()
         {
             _logs = new UILog(100);
             _root = new PathNode("");
@@ -54,21 +54,23 @@ namespace FileSyncClientUI
 
         private void OnLogInformation(string message)
         {
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+            if (System.Windows.Application.Current != null)
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 _logs.Add(message);
                 OnPropertyChanged(nameof(Logs));
-                
+
             });
         }
 
         private void OnLogError(string message, Exception e)
         {
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
-            {
-                _logs.Add(message);
-                OnPropertyChanged(nameof(Logs));
-            });
+            if (System.Windows.Application.Current != null)
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+                {
+                    _logs.Add(message);
+                    OnPropertyChanged(nameof(Logs));
+                });
         }
 
         protected void OnPropertyChanged([CallerMemberName] string name = null)

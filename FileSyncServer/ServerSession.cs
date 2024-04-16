@@ -14,18 +14,15 @@ namespace FileSyncServer
     {
         private string _folder;
         private int _id;
-        private bool _disconnected;
-        private int _total;
         private SocketSession _session;
         private string _password;
         public delegate void AuthenticateHandler(bool success, ServerSession session);
         public delegate void DisconnectHandler(ServerSession session);
         public event DisconnectHandler OnDisconnect;
         public event AuthenticateHandler OnAuthenticate;
+        public bool IsAuthenticated { get; set; } = false;
         public SocketSession SocketSession { get { return _session; } }
-
         public int Id { get => _id; set => _id = value; }
-
         public ServerSession(int id, string folder, string password, Socket socket, bool encrypt, byte encryptKey)
         {
             _id = id;
@@ -34,8 +31,18 @@ namespace FileSyncServer
             _session = new SocketSession(socket, encrypt, encryptKey);
             _session.OnSocketError += OnSocketError;
             _session.OnReceivePackage += OnReceivePackage;
+            /*清除超时连接*/
+            new Thread(() =>
+            {
+                Thread.Sleep(TimeSpan.FromSeconds(15));
+                if (!IsAuthenticated && _session.Socket.Connected)
+                {
+                    Log.Information("验证超时关闭");
+                    _session.Disconnect();
+                }
+            }).Start();
+            
         }
-
         protected void OnReceivePackage(Packet packet)
         {
             if (packet != null)
@@ -61,7 +68,6 @@ namespace FileSyncServer
                 }
             }
         }
-
         private void DoFolderListRequest(PacketFolderListRequest packet)
         {
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
@@ -77,24 +83,24 @@ namespace FileSyncServer
             else
                 _session.SendPacket(new PacketFolderListResponse(packet.ClientId, packet.RequestId, packet.Path, new string[0]));
         }
-
         private void DoAuthenticateRequest(PacketAuthenticateRequest packet)
         {
             if (packet.Password == _password)
             {
                 Log.Information("验证成功");
                 SocketSession.SendPacket(new PacketAuthenticateResponse(_id, packet.RequestId, true));
+                IsAuthenticated = true;
                 if (OnAuthenticate != null)
                     OnAuthenticate(true, this);
             }
             else
             {
                 SocketSession.SendPacket(new PacketAuthenticateResponse(_id, 0, false));
+                IsAuthenticated = false;
                 if (OnAuthenticate != null)
                     OnAuthenticate(false, this);
             }
         }
-
         private void DoFileContentInfoRequest(PacketFileContentInfoRequest packet)
         {
             Log.Information($"收到读取文件信息请求:{packet.Path}");
