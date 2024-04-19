@@ -168,6 +168,14 @@ public class ByteArrayStream : IDisposable
 
         Write(new byte[] { value }, 0, 1);
     }
+    public void Write(short value)
+    {
+        if (_writePos + sizeof(short) >= _data.Length)
+            SetLength(_writePos + sizeof(short));
+
+        var buffer = BitConverter.GetBytes(value);
+        Write(buffer, 0, buffer.Length);
+    }
     public void Write(int value)
     {
         if (_writePos + sizeof(int) >= _data.Length)
