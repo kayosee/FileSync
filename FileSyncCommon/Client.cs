@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json.Serialization;
 using FileSyncCommon.Messages;
 using FileSyncCommon.Messages;
@@ -62,46 +63,51 @@ namespace FileSyncCommon
         public bool Running { get => _running; }
         public int SyncDaysBefore { get => _syncDaysBefore; set => _syncDaysBefore = value; }
         public int DeleteDaysBefore { get => _deleteDaysBefore; set => _deleteDaysBefore = value; }
-        private void OnSendPackage(Messages.Message packet)
+        private void OnSendPackage(Messages.Message messages)
         {
-            if (packet is Request request)
+            if (messages is Request request)
                 _request.Increase(request.RequestId);
         }
-        private void OnReceivePackage(Messages.Message packet)
+        private void OnReceivePackage(Message message)
         {
-            if (packet != null)
+            if (message != null)
             {
-                switch (packet.MessageType)
+                if(message is Response response)
+                {
+                    if(response.Latest)
+                        _request.Remove(response.RequestId);
+                }
+                switch (message.MessageType)
                 {
                     case MessageType.AuthenticateResponse:
-                        DoAuthenticateResponse((AuthenticateResponse)packet);
+                        DoAuthenticateResponse((AuthenticateResponse)message);
                         break;
                     case MessageType.FileListInfoResponse:
-                        DoFileListInfoResponse((FileListInfoResponse)packet);
+                        DoFileListInfoResponse((FileListInfoResponse)message);
                         break;
                     case MessageType.FileListDetailResponse:
-                        DoFileListDetailResponse((FileListDetailResponse)packet);
+                        DoFileListDetailResponse((FileListDetailResponse)message);
                         break;
                     case MessageType.FileContentInfoResponse:
-                        DoFileContentInfoResponse((FileContentInfoResponse)packet);
+                        DoFileContentInfoResponse((FileContentInfoResponse)message);
                         break;
                     case MessageType.FileContentDetailResponse:
-                        DoFileContentDetailResponse((FileContentDetailResponse)packet);
+                        DoFileContentDetailResponse((FileContentDetailResponse)message);
                         break;
                     case MessageType.FolderListResponse:
-                        DoFolderListResponse((FolderListResponse)packet);
+                        DoFolderListResponse((FolderListResponse)message);
                         break;
                 }
             }
         }
-        private void DoFolderListResponse(FolderListResponse packet)
+        private void DoFolderListResponse(FolderListResponse messages)
         {
             if (OnFolderListResponse != null)
-                OnFolderListResponse(packet);
+                OnFolderListResponse(messages);
         }
-        private void DoAuthenticateResponse(AuthenticateResponse packet)
+        private void DoAuthenticateResponse(AuthenticateResponse messages)
         {
-            if (!packet.OK)
+            if (!messages.OK)
             {
                 LogError("验证失败，连接断开");
                 _session.Disconnect();
@@ -109,24 +115,20 @@ namespace FileSyncCommon
             else
             {
                 LogInformation("验证成功");
-                this._clientId = packet.ClientId;
+                this._clientId = messages.ClientId;
                 this._authorized = true;
                 OnLogin?.Invoke();
             }
         }
-        private void DoFileContentInfoResponse(FileContentInfoResponse packet)
+        private void DoFileContentInfoResponse(FileContentInfoResponse messages)
         {
-            LogInformation($"发起请求文件信息: {packet.Path}");
+            LogInformation($"发起请求文件信息: {messages.Path}");
 
-            var response = new FileContentDetailRequest(_clientId, DateTime.Now.Ticks, packet.LastPos, packet.Path);
-            _request.Increase(response.RequestId, packet.TotalCount);
-            _request.Decrease(packet.RequestId);
-
+            var response = new FileContentDetailRequest(_clientId, DateTime.Now.Ticks, messages.LastPos, messages.Path);
             _session.SendMessage(response);
         }
-        private void DoFileListInfoResponse(FileListInfoResponse packet)
+        private void DoFileListInfoResponse(FileListInfoResponse messages)
         {
-            _request.Increase(packet.RequestId, packet.FileCount);
         }
         private void DoFileContentDetailResponse(FileContentDetailResponse fileResponse)
         {
@@ -141,14 +143,12 @@ namespace FileSyncCommon
 
                         File.Create(path).Close();
                         fi.LastWriteTime = DateTime.FromBinary(fileResponse.LastWriteTime);
-                        _request.Remove(fileResponse.RequestId);
                         break;
                     }
                 case FileResponseType.FileDeleted:
                     {
                         if (System.IO.Path.Exists(path))
                             File.Delete(path);
-                        _request.Remove(fileResponse.RequestId);
                         break;
                     }
                 case FileResponseType.Content:
@@ -159,14 +159,12 @@ namespace FileSyncCommon
                             {
                                 FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, null);
                                 FileOperator.SetupFile(path, fileResponse.LastWriteTime);
-                                _request.Remove(fileResponse.RequestId);
                                 LogInformation($"{fileResponse.Path}已经传输完成。");
                             }
                             else //写入位置信息
                             {
                                 FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, fileResponse.Pos + fileResponse.FileDataLength);
                                 _session.SendMessage(new FileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
-                                _request.Decrease(fileResponse.RequestId);
                             }
                         }
                         catch (Exception e)
@@ -179,7 +177,6 @@ namespace FileSyncCommon
                 case FileResponseType.FileReadError:
                     {
                         LogError($"远程文件读取失败:{fileResponse.Path}", null);
-                        _request.Remove(fileResponse.RequestId);
                         break;
                     }
                 default:
@@ -202,20 +199,17 @@ namespace FileSyncCommon
                         request.Checksum = FileOperator.GetCrc32(file + ".sync", pos);
                         request.LastPos = pos;
                         _session.SendMessage(request);
-                        _request.Increase(request.RequestId);
                         LogInformation($"正在检验续传文件:{fileInformation.Path}");
                     }
                     catch (Exception ex)
                     {
                         _session.SendMessage(request);
-                        _request.Increase(request.RequestId);
                         LogInformation($"文件校验失败:{fileInformation.Path}，重新下载。");
                     }
                 }
                 else
                 {
                     _session.SendMessage(request);
-                    _request.Increase(request.RequestId);
                     LogInformation($"文件不存在:{fileInformation.Path}，发起下载。");
                 }
             }
@@ -224,35 +218,20 @@ namespace FileSyncCommon
                 if (localFileInfo.Length == fileInformation.FileLength && localFileInfo.LastWriteTime.Ticks == fileInformation.LastWriteTime)//请求CHECKSUM，看看是不是一样
                 {
                     LogInformation($"{fileInformation.Path}文件一致，无须更新");
-
-                    /*
-                    var checksum = FileOperator.GetCrc32(localFileInfo.FullName);
-                    if (checksum != fileInformation.Checksum)
-                    {
-                        SendPacket(request);
-                        _request.Increase(request.RequestId);
-                    }
-                    else
-                    {
-                        Log.Information($"{fileInformation.Path}文件一致，无须更新");
-                    }
-                    */
                 }
                 else
                 {
                     _session.SendMessage(request);
-                    _request.Increase(request.RequestId);
                     LogInformation($"{fileInformation.Path}文件不一致，需要更新");
                 }
             }
-            _request.Decrease(fileInformation.RequestId);
         }
         protected void OnSocketError(SocketSession socketSession, Exception e)
         {
             Disconnect();
             while (!_socket.Connected)
             {
-                Connect(_host, _port, _encrypt, _encryptKey, _password);
+                Connect(_host, _port, _password);
             }
         }
         protected void OnConnected()
@@ -261,22 +240,27 @@ namespace FileSyncCommon
             _session.OnReceivePackage += OnReceivePackage;
             _session.OnSendPackage += OnSendPackage;
             _session.OnSocketError += OnSocketError;
-            var packet = new AuthenticateRequest(0, 0, _password);
-            _session.SendMessage(packet);
+            var messages = new AuthenticateRequest(0, 0, _password);
+            _session.SendMessage(messages);
         }
         public bool Reconnect()
         {
-            return Connect(_host, _port, _encrypt, _encryptKey, _password);
+            return Connect(_host, _port, _password);
         }
-        public bool Connect(string host, int port, bool encrypt, byte encryptKey, string password)
+        public bool Connect(string host, int port, string password)
         {
             try
             {
                 _host = host;
                 _port = port;
-                _encrypt = encrypt;
-                _encryptKey = encryptKey;
                 _password = password;
+                _encrypt=!string.IsNullOrEmpty(password);
+                if (_encrypt)
+                {
+                    var bytes = Encoding.UTF8.GetBytes(password);
+                    _encryptKey = bytes.Aggregate((s, t) => s ^= t);
+                }
+
                 _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
                 _socket.Connect(IPAddress.Parse(host), port);
                 OnConnected();
@@ -323,9 +307,8 @@ namespace FileSyncCommon
 
                 if (_request.IsEmpty && IsConnected)
                 {
-                    var packet = new FileListRequest(_clientId, DateTime.Now.Ticks, syncDaysBefore, _remoteFolder);
-                    _request.Increase(packet.RequestId, 0);
-                    _session.SendMessage(packet);
+                    var messages = new FileListRequest(_clientId, DateTime.Now.Ticks, syncDaysBefore, _remoteFolder);
+                    _session.SendMessage(messages);
 
                 }
             }, null, 0, (int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);

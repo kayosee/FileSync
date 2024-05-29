@@ -68,7 +68,6 @@ public class FileListDetailResponse : Response
     {
         var stream = base.GetStream();
 
-        stream.Write(_requestId);
         stream.Write(_createTime);
         stream.Write(_lastAccessTime);
         stream.Write(_lastWriteTime);

@@ -15,7 +15,6 @@ namespace FileSyncCommon.Messages
         public string Password { get => _password; set => _password = value; }
         public AuthenticateRequest(ByteArrayStream stream) : base(stream)
         {
-            _requestId = stream.ReadInt64();
             _passwordLength = stream.ReadInt32();
 
             byte[] buffer = new byte[_passwordLength];

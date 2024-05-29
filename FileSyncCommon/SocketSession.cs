@@ -140,8 +140,7 @@ namespace FileSyncCommon
                 if (packet.SliceLength <= 0)
                     throw new InvalidDataException(nameof(packet.SliceLength) + "长度无效");
 
-                packet.SliceData = Read(packet.SliceLength, maxWaitSeconds);
-                _socket.Receive(packet.SliceData, packet.SliceLength, SocketFlags.None);
+                packet.SliceData = Read(packet.SliceLength, maxWaitSeconds);                
                 return packet;
 
             }
@@ -155,9 +154,10 @@ namespace FileSyncCommon
         {
             try
             {
+                /*
                 Array.Resize(ref buffer, buffer.Length + sizeof(uint));
                 Crc32Algorithm.ComputeAndWriteToEnd(buffer);
-
+                */
                 if (_encrypt)
                     buffer.ForEach<byte>(f => f ^= _encryptKey);
                 _socket.Send(buffer);

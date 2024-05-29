@@ -34,7 +34,6 @@ namespace FileSyncCommon.Messages
         {
             var stream = base.GetStream();
 
-            stream.Write(_requestId);
             stream.Write(_fileCount);
             stream.Write(_totalSize);
             return stream;

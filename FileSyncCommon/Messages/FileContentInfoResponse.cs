@@ -49,7 +49,7 @@ namespace FileSyncCommon.Messages
             _path = Encoding.UTF8.GetString(buffer, 0, _pathLength).Trim('\0');
         }
 
-        public FileContentInfoResponse(int clientId, long requestId, long lastPos, uint checksum, long totalCount, long totalSize, string path,bool latest) : base(MessageType.FileContentInfoResponse, clientId, requestId,latest)
+        public FileContentInfoResponse(int clientId, long requestId, long lastPos, uint checksum, long totalCount, long totalSize, string path) : base(MessageType.FileContentInfoResponse, clientId, requestId, true)
         {
             _lastPos = lastPos;
             _checksum = checksum;

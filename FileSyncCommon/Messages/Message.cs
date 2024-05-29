@@ -53,7 +53,7 @@ namespace FileSyncCommon.Messages
             if (!Enum.IsDefined(typeof(MessageType), (int)messageType))
                 throw new InvalidDataException("包类型不正确");
 
-            var type = typeof(Message).Assembly.GetTypes().First(f => f.Name == Enum.GetName((DataType)messageType));
+            var type = typeof(Message).Assembly.GetTypes().First(f => f.Name == Enum.GetName((MessageType)messageType));
             Debug.Assert(type != null);
             var constructor = type.GetConstructors().First(f => f.GetParameters().Any(f => f.ParameterType == typeof(ByteArrayStream)));
             Message? sessionData = constructor.Invoke(new object[] { stream }) as Message;

@@ -7,7 +7,7 @@ using FileSyncCommon.Tools;
 
 namespace FileSyncCommon.Messages
 {
-    public class FolderListResponse : Request
+    public class FolderListResponse : Response
     {
         private string _path;
         private int _pathLength;
@@ -38,7 +38,7 @@ namespace FileSyncCommon.Messages
             stream.Read(buffer, 0, _folderListLength);
             _folderList = Encoding.UTF8.GetString(buffer).Trim('\0');
         }
-        public FolderListResponse(int clientId, long requestId, string path, string[] folderList) : base(MessageType.FolderListResponse, clientId, requestId)
+        public FolderListResponse(int clientId, long requestId, string path, string[] folderList) : base(MessageType.FolderListResponse, clientId, requestId, true)
         {
             _path = path;
             if (folderList != null && folderList.Length > 0)
