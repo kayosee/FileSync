@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FileSyncCommon
+namespace FileSyncCommon.Tools
 {
     public class RequestCounter<TKey>
     {
@@ -18,13 +18,13 @@ namespace FileSyncCommon
         {
             if (_counter.ContainsKey(key))
             {
-                if ((_counter[key] -= (long)value) <= 0)
+                if ((_counter[key] -= value) <= 0)
                     _counter.TryRemove(key, out var _);
             }
         }
         public void Remove(TKey key)
         {
-            _counter.TryRemove(key,out var _);
+            _counter.TryRemove(key, out var _);
         }
         public long this[TKey key]
         {

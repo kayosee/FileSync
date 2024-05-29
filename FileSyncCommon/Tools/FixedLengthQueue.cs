@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FileSyncCommon
+namespace FileSyncCommon.Tools
 {
     public class FixedLengthQueue<T> : IDisposable
     {
@@ -33,7 +33,7 @@ namespace FileSyncCommon
             }
             catch (Exception ex)
             {
-                item = default(T);
+                item = default;
                 return false;
             }
         }

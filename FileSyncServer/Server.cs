@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using static System.Collections.Specialized.BitVector32;
 using FileSyncCommon;
+using FileSyncCommon.Tools;
 
 namespace FileSyncServer
 {
@@ -23,13 +24,18 @@ namespace FileSyncServer
         private byte _encryptKey;
         private string _password;
         private const int AuthenticateTimeout = 5;
-        public Server(int port, string folder, bool encrypt, byte encryptKey, string password)
+        public Server(int port, string folder, string password)
         {
             _port = port;
             _folder = folder;
-            _encrypt = encrypt;
-            _encryptKey = encryptKey;
             _password = password;
+            _encrypt = !string.IsNullOrEmpty(password);
+            if(_encrypt)
+            {
+                byte[] bytes = Encoding.UTF8.GetBytes(password);
+                _encryptKey = bytes.Aggregate((s, t) => s ^= t);
+            }
+                
         }
         public int Port { get => _port; set => _port = value; }
         public string Folder { get => _folder; set => _folder = value; }

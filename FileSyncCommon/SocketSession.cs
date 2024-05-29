@@ -1,8 +1,12 @@
-﻿using Force.Crc32;
+﻿using FileSyncCommon.Messages;
+using FileSyncCommon.Tools;
+using Force.Crc32;
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using System.Reflection;
-
+using System.Text;
+using FileSyncCommon.Tools;
+using System;
 namespace FileSyncCommon
 {
     public sealed class SocketSession
@@ -14,15 +18,17 @@ namespace FileSyncCommon
         private Thread _producer;
         private Thread _consumer;
         private Socket _socket;
-        private FixedLengthQueue<Packet> _packetQueue;
+        private FixedLengthQueue<Messages.Message> _packetQueue;
         private static ConcurrentDictionary<int, ConstructorInfo> _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
         public bool Encrypt { get => _encrypt; set => _encrypt = value; }
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
         public Socket Socket { get => _socket; set => _socket = value; }
-        public delegate void ReceivePackageHandler(Packet packet);
+        public delegate void ReceivePackageHandler(Message packet);
+        public delegate void SendPackageHandler(Message packet);
         public delegate void SocketErrorHandler(SocketSession socketSession, Exception e);
         public delegate void DataErrorHandler(SocketSession socketSession, string message);
         public event ReceivePackageHandler? OnReceivePackage;
+        public event SendPackageHandler? OnSendPackage;
         public event SocketErrorHandler? OnSocketError;
         public event DataErrorHandler? OnDataError;
         public SocketSession(Socket socket, bool encrypt, byte encryptKey)
@@ -32,12 +38,12 @@ namespace FileSyncCommon
             _encrypt = encrypt;
             _encryptKey = encryptKey;
 
-            _packetQueue = new FixedLengthQueue<Packet>(Environment.ProcessorCount);
+            _packetQueue = new FixedLengthQueue<Message>(Environment.ProcessorCount);
             _producer = new Thread((s) =>
                 {
                     while (!_disposed)
                     {
-                        var packet = ReadPacket();
+                        var packet = ReadMessage();
                         if (packet != null)
                         {
                             _packetQueue.Enqueue(packet);
@@ -80,54 +86,70 @@ namespace FileSyncCommon
             {
             }
         }
-        public void SendPacket(Packet packet)
+        public void SendMessage(Message message)
         {
             try
             {
-                Write(packet.GetBytes());
-            }
-            catch (Exception e)
-            {
-                DoSocketError(this, e);
-            }
-        }
-        private bool Read(int length, out List<byte> result)
-        {
-            const int MaxBufferSize = 1024;
-            var bufferSize = length > MaxBufferSize ? MaxBufferSize : length;
-            var buffer = new byte[bufferSize];
-            result = new List<byte>();
-            try
-            {
-                var total = 0;
-                while (total < length)
+                foreach (var packet in message.ToPackets())
                 {
-                    var need = length - total > bufferSize ? bufferSize : length - total;
-                    var nret = _socket.Receive(buffer, 0, need, SocketFlags.None);
-                    if (nret > 0)
-                        result.AddRange(buffer.Take(nret));
-                    total += nret;
-                }
+                    Write(packet.Serialize());
+                };
 
-                if (_encrypt)
-                {
-                    for (int i = 0; i < result.Count; i++)
-                        result[i] ^= _encryptKey;
-                }
-                return true;
+                if (OnSendPackage != null)
+                    OnSendPackage(message);
             }
             catch (Exception e)
             {
                 DoSocketError(this, e);
-                return false;
             }
         }
-        private bool ReadAppend(int length, out List<byte> buffer, ref List<byte> appender)
+        private byte[] Read(int length, int maxWaitSeconds = -1)
         {
-            var ok = (Read(length, out buffer));
-            if (ok)
-                appender.AddRange(buffer);
-            return ok;
+            if (maxWaitSeconds > 0)
+                _socket.ReceiveTimeout = (int)TimeSpan.FromSeconds(maxWaitSeconds).TotalMilliseconds;
+            else
+                _socket.ReceiveTimeout = -1;
+
+            byte[] buffer = new byte[length];
+            _socket.Receive(buffer, length, SocketFlags.None);
+            if (_encrypt)
+                buffer.ForEach<byte>(f => f ^= _encryptKey);
+
+            return buffer;
+        }
+        private Packet? ReadPacket(int maxWaitSeconds = -1)
+        {
+            try
+            {
+                Packet packet = new Packet();
+
+                var buffer = Read(Packet.Flag.Length, maxWaitSeconds);
+                if (Encoding.UTF8.GetString(buffer) != Encoding.UTF8.GetString(Packet.Flag))
+                    throw new InvalidDataException("包头标志不正确");
+
+                buffer = Read(sizeof(long), maxWaitSeconds);
+                packet.TotalLength = BitConverter.ToInt64(buffer);
+
+                buffer = Read(sizeof(int), maxWaitSeconds);
+                packet.Sequence = BitConverter.ToInt32(buffer);
+                if (packet.Sequence < 0)
+                    throw new InvalidDataException(nameof(packet.Sequence) + "序号无效");
+
+                buffer = Read(sizeof(short), maxWaitSeconds);
+                packet.SliceLength = BitConverter.ToInt16(buffer);
+                if (packet.SliceLength <= 0)
+                    throw new InvalidDataException(nameof(packet.SliceLength) + "长度无效");
+
+                packet.SliceData = Read(packet.SliceLength, maxWaitSeconds);
+                _socket.Receive(packet.SliceData, packet.SliceLength, SocketFlags.None);
+                return packet;
+
+            }
+            catch (Exception e)
+            {
+                OnSocketError?.Invoke(this, e);
+                return null;
+            }
         }
         private int Write(byte[] buffer)
         {
@@ -147,76 +169,23 @@ namespace FileSyncCommon
                 return 0;
             }
         }
-        private Packet? ReadPacket()
+        private Message? ReadMessage()
         {
-            var whole = new List<byte>();
-
-            if (!ReadAppend(1, out var buffer, ref whole))//dataType
-                return null;
-
-            byte dataType = buffer[0];
-            if (!Enum.IsDefined(typeof(PacketType), (int)dataType))
+            long totalLength = 0;
+            var packets = new List<Packet>();
+            do
             {
-                OnDataError?.Invoke(this, "数据错误，无效数据包类型: " + dataType);
-                return null;
-            }
+                var packet = ReadPacket(-1);
+                if (packet == null)
+                    return null;
 
-            if (!ReadAppend(Packet.Int32Size, out buffer, ref whole))//dataLength
-                return null;
+                totalLength += packet.SliceLength;
+                packets.Add(packet);
+                if (totalLength >= packet.TotalLength)
+                    break;
+            } while (true);
 
-            var dataLength = BitConverter.ToInt32(buffer.ToArray());
-            if (dataLength <= 0)
-            {
-                OnDataError?.Invoke(this, "数据错误，无效数据包长度: " + dataLength);
-                return null;
-            }
-
-            if (!ReadAppend(Packet.Int32Size, out buffer, ref whole))//clientID
-                return null;
-
-            var clientId = BitConverter.ToInt32(buffer.ToArray());
-
-            if (!ReadAppend(dataLength, out _, ref whole))//包数据内容
-                return null;
-
-            if (!ReadAppend(sizeof(uint), out _, ref whole))//checksum
-                return null;
-
-            if (!Crc32Algorithm.IsValidWithCrcAtEnd(whole.ToArray()))
-            {
-                OnDataError?.Invoke(this, "Crc检验出错");
-                return null;
-            }
-
-            var result = ConvertPacket(dataType, whole.ToArray());
-            if (result != null)
-            {
-                return (Packet)result;
-            }
-            return null;
-        }
-        private object? ConvertPacket(int dataType, byte[] data)
-        {
-            ConstructorInfo constructor = null;
-            if (_constructors.ContainsKey(dataType))
-            {
-                constructor = _constructors[dataType];
-            }
-            else
-            {
-                var name = "Packet" + Enum.GetName(typeof(PacketType), (int)dataType);
-                var type = typeof(Packet).Assembly.GetTypes().First(f => f.Name == name);
-                constructor = type.GetConstructors().First(f => f.GetParameters().Length == 1 && f.GetParameters().Any(s => s.Name == "bytes"));
-                if (constructor != null)
-                {
-                    _constructors.AddOrUpdate(dataType, constructor, (key, value) => value);
-                }
-            }
-
-            if (constructor != null)
-                return constructor.Invoke(new object[] { data });
-
-            return null;
+            return Message.FromPackets(packets.ToArray());
         }
         ~SocketSession()
         {

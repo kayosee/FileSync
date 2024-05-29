@@ -4,12 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FileSyncCommon;
+namespace FileSyncCommon.Messages;
 
 public enum FileResponseType
 {
-    Empty ,
-    Content ,
-    FileDeleted ,
-    FileReadError 
+    Empty,
+    Content,
+    FileDeleted,
+    FileReadError
 }

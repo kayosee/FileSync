@@ -1,5 +1,6 @@
 ﻿using DevExpress.Xpf.Core.Native;
 using FileSyncCommon;
+using FileSyncCommon.Messages;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -153,7 +154,7 @@ namespace FileSyncClientUI
                 });
             }
         }
-        private void OnClientFolderListResponse(PacketFolderListResponse response)
+        private void OnClientFolderListResponse(FolderListResponse response)
         {
             var node = _root.FindChild(response.Path, 0);
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -208,26 +209,6 @@ namespace FileSyncClientUI
                 base.RemoteFolder = value;
                 OnPropertyChanged(nameof(RemoteFolder));
                 OnPropertyChanged(nameof(Runable));
-            }
-        }
-        [JsonProperty]
-        public new bool Encrypt
-        {
-            get => base.Encrypt;
-            set
-            {
-                base.Encrypt = value;
-                OnPropertyChanged(nameof(Encrypt));
-            }
-        }
-        [JsonProperty]
-        public new byte EncryptKey
-        {
-            get => base.EncryptKey;
-            set
-            {
-                base.EncryptKey = value;
-                OnPropertyChanged(nameof(EncryptKey));
             }
         }
         [JsonProperty]

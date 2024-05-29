@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FileSyncCommon;
+namespace FileSyncCommon.Tools;
 
 public static class ArrayHelper
 {
@@ -17,7 +17,7 @@ public static class ArrayHelper
         }
 
         var result = (from r in source select func.Invoke(r)).ToArray();
-        
+
         return result;
     }
 
@@ -32,7 +32,7 @@ public static class ArrayHelper
         {
             return;
         }
-        for( var i = 0;i < count; i++ )
+        for (var i = 0; i < count; i++)
         {
             source.SetValue(func.Invoke((TSource)source.GetValue(i)), i);
         }

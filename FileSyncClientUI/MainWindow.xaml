@@ -43,13 +43,7 @@
                                 <dxlc:LayoutItem Label="端口">
                                     <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Port,Mode=TwoWay}" MinValue="1" MaxValue="65535"></dxe:SpinEdit>
                                 </dxlc:LayoutItem>
-                                <dxlc:LayoutItem Label="是否加密">
-                                    <dxe:CheckEdit EditValue="{Binding Path=Encrypt,Mode=TwoWay}"></dxe:CheckEdit>
-                                </dxlc:LayoutItem>
                                 <dxlc:LayoutItem Label="加密密钥">
-                                    <dxe:TextEdit EditValue="{Binding Path=EncryptKey,Mode=TwoWay}"></dxe:TextEdit>
-                                </dxlc:LayoutItem>
-                                <dxlc:LayoutItem Label="验证码">
                                     <dxe:TextEdit EditValue="{Binding Path=Password,Mode=TwoWay}"></dxe:TextEdit>
                                 </dxlc:LayoutItem>
                                 <dxlc:LayoutItem Label="同步间隔(分钟)">

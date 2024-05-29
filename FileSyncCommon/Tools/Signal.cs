@@ -4,18 +4,19 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FileSyncCommon
+namespace FileSyncCommon.Tools
 {
     public class Signal
     {
         private ManualResetEvent _event;
         private bool _state;
-        public Signal(bool initialState) {
+        public Signal(bool initialState)
+        {
             _state = initialState;
             _event = new ManualResetEvent(initialState);
         }
 
-        public bool State {  get { return _state; } }
+        public bool State { get { return _state; } }
         public void Prohibited()
         {
             _state = false;

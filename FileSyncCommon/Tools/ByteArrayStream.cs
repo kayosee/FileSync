@@ -1,12 +1,15 @@
-﻿using System;
+﻿using Microsoft.Win32.SafeHandles;
+using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 
-namespace FileSyncCommon;
+namespace FileSyncCommon.Tools;
 
 public class ByteArrayStream : IDisposable
 {
@@ -20,7 +23,6 @@ public class ByteArrayStream : IDisposable
         _readPos = 0;
         _writePos = 0;
     }
-
     public ByteArrayStream(long length)
     {
         _data = new byte[length];
@@ -34,12 +36,23 @@ public class ByteArrayStream : IDisposable
         _readPos = 0;
         _writePos = 0;
     }
-
     public long Length => _data.LongLength;
-
     public long WritePosition { get => _writePos; set => _writePos = value; }
     public long ReadPosition { get => _readPos; set => _readPos = value; }
+    public int Peek(byte[] buffer, int offset, int count)
+    {
+        if (_data.Length > 0)
+        {
+            var min = Math.Min(count, _data.Length);
+            Span<byte> span = buffer;
+            Span<byte> data = _data;
+            var slice = span.Slice(offset, min);
+            data.Slice((int)_readPos, count).CopyTo(slice);
+            return min;
+        }
 
+        throw new EndOfStreamException();
+    }
     public int Read(byte[] buffer, int offset, int count)
     {
         if (_data.Length > 0)
@@ -55,7 +68,6 @@ public class ByteArrayStream : IDisposable
 
         throw new EndOfStreamException();
     }
-
     public ushort ReadUInt16()
     {
         var size = sizeof(ushort);
@@ -102,7 +114,6 @@ public class ByteArrayStream : IDisposable
         _readPos += size;
         return result;
     }
-
     public int ReadInt32()
     {
         var size = sizeof(int);
@@ -145,12 +156,10 @@ public class ByteArrayStream : IDisposable
 
         return _readPos;
     }
-
     public void SetLength(long value)
     {
         Array.Resize(ref _data, (int)value);
     }
-
     public void Write(byte[] buffer, int offset, int count)
     {
         if (_writePos + count > _data.Length)
@@ -200,17 +209,14 @@ public class ByteArrayStream : IDisposable
         var buffer = BitConverter.GetBytes(value);
         Write(buffer, 0, buffer.Length);
     }
-
     public byte[] GetBuffer()
     {
         return _data;
     }
-
     public void Dispose()
     {
     }
-
-    internal byte ReadByte()
+    public byte ReadByte()
     {
         if (_readPos >= _data.LongLength)
             throw new EndOfStreamException();
@@ -218,6 +224,5 @@ public class ByteArrayStream : IDisposable
         var result = _data[_readPos];
         _readPos += 1;
         return result;
-
     }
 }

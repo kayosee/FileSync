@@ -4,10 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FileSyncCommon
+namespace FileSyncCommon.Messages
 {
-    public interface IHandler
+    public interface ISerialization
     {
-        object Process(Packet packet,SocketSession session);
+        byte[] Serialize();
     }
 }

@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FileSyncCommon;
+namespace FileSyncCommon.Messages;
 
-public enum PacketType
+public enum MessageType
 {
     AuthenticateRequest,
     AuthenticateResponse,

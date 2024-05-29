@@ -1,4 +1,7 @@
 ﻿using FileSyncCommon;
+using FileSyncCommon.Messages;
+using FileSyncCommon.Messages;
+using FileSyncCommon.Tools;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -43,32 +46,32 @@ namespace FileSyncServer
             }).Start();
             
         }
-        protected void OnReceivePackage(Packet packet)
+        protected void OnReceivePackage(Message packet)
         {
             if (packet != null)
             {
-                switch (packet.DataType)
+                switch (packet.MessageType)
                 {
-                    case PacketType.AuthenticateRequest:
-                        DoAuthenticateRequest((PacketAuthenticateRequest)packet);
+                    case MessageType.AuthenticateRequest:
+                        DoAuthenticateRequest((AuthenticateRequest)packet);
                         break;
-                    case PacketType.FileListRequest:
-                        DoFileListRequest((PacketFileListRequest)packet);
+                    case MessageType.FileListRequest:
+                        DoFileListRequest((FileListRequest)packet);
                         break;
-                    case PacketType.FileContentInfoRequest:
-                        DoFileContentInfoRequest((PacketFileContentInfoRequest)packet);
+                    case MessageType.FileContentInfoRequest:
+                        DoFileContentInfoRequest((FileContentInfoRequest)packet);
                         break;
-                    case PacketType.FileContentDetailRequest:
-                        DoFileContentDetailRequest((PacketFileContentDetailRequest)packet);
+                    case MessageType.FileContentDetailRequest:
+                        DoFileContentDetailRequest((FileContentDetailRequest)packet);
                         break;
-                    case PacketType.FolderListRequest:
-                        DoFolderListRequest((PacketFolderListRequest)packet);
+                    case MessageType.FolderListRequest:
+                        DoFolderListRequest((FolderListRequest)packet);
                         break;
                     default: break;
                 }
             }
         }
-        private void DoFolderListRequest(PacketFolderListRequest packet)
+        private void DoFolderListRequest(FolderListRequest packet)
         {
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             if (Path.Exists(localPath))
@@ -78,37 +81,37 @@ namespace FileSyncServer
                             let s = r.Name
                             where !string.IsNullOrEmpty(s)
                             select s;
-                _session.SendPacket(new PacketFolderListResponse(packet.ClientId, packet.RequestId, packet.Path, query.ToArray()));
+                _session.SendMessage(new FolderListResponse(packet.ClientId, packet.RequestId, packet.Path, query.ToArray()));
             }
             else
-                _session.SendPacket(new PacketFolderListResponse(packet.ClientId, packet.RequestId, packet.Path, new string[0]));
+                _session.SendMessage(new FolderListResponse(packet.ClientId, packet.RequestId, packet.Path, new string[0]));
         }
-        private void DoAuthenticateRequest(PacketAuthenticateRequest packet)
+        private void DoAuthenticateRequest(AuthenticateRequest packet)
         {
             if (packet.Password == _password)
             {
                 Log.Information("验证成功");
-                SocketSession.SendPacket(new PacketAuthenticateResponse(_id, packet.RequestId, true));
+                SocketSession.SendMessage(new AuthenticateResponse(_id, packet.RequestId, true));
                 IsAuthenticated = true;
                 if (OnAuthenticate != null)
                     OnAuthenticate(true, this);
             }
             else
             {
-                SocketSession.SendPacket(new PacketAuthenticateResponse(_id, 0, false));
+                SocketSession.SendMessage(new AuthenticateResponse(_id, 0, false));
                 IsAuthenticated = false;
                 if (OnAuthenticate != null)
                     OnAuthenticate(false, this);
             }
         }
-        private void DoFileContentInfoRequest(PacketFileContentInfoRequest packet)
+        private void DoFileContentInfoRequest(FileContentInfoRequest packet)
         {
             Log.Information($"收到读取文件信息请求:{packet.Path}");
 
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             var fileInfo = new FileInfo(localPath);
 
-            var totalCount = (long)((fileInfo.Length - packet.LastPos) / PacketFileContentDetailResponse.MaxDataSize);
+            var totalCount = (long)((fileInfo.Length - packet.LastPos) / FileContentDetailResponse.MaxDataSize);
             var totalSize = fileInfo.Length - packet.LastPos;
             var lastPos = packet.LastPos;
             uint checksum = 0;
@@ -119,7 +122,7 @@ namespace FileSyncServer
                     checksum = FileOperator.GetCrc32(localPath, packet.LastPos);
                     if (checksum != packet.Checksum)//校验不一致，重新传输
                     {
-                        totalCount = (long)((fileInfo.Length) / PacketFileContentDetailResponse.MaxDataSize);
+                        totalCount = (long)((fileInfo.Length) / FileContentDetailResponse.MaxDataSize);
                         totalSize = fileInfo.Length;
                         lastPos = 0;
                     }
@@ -129,10 +132,10 @@ namespace FileSyncServer
                     Log.Error("文件检验失败:" + ex.Message);
                 }
             }
-            var response = new PacketFileContentInfoResponse(packet.ClientId, packet.RequestId, lastPos, checksum, totalCount, totalSize, packet.Path);
-            _session.SendPacket(response);
+            var response = new FileContentInfoResponse(packet.ClientId, packet.RequestId, lastPos, checksum, totalCount, totalSize, packet.Path,false);
+            _session.SendMessage(response);
         }
-        private void DoFileContentDetailRequest(PacketFileContentDetailRequest packet)
+        private void DoFileContentDetailRequest(FileContentDetailRequest packet)
         {
             Log.Information($"收到读取文件内容请求:{packet.Path}");
             try
@@ -140,7 +143,7 @@ namespace FileSyncServer
                 var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
                 var fileInfo = new FileInfo(localPath);
                 if (!fileInfo.Exists)
-                    _session.SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileDeleted, packet.Path));
+                    _session.SendMessage(new FileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileDeleted, packet.Path,false));
                 else
                 {
                     using (var stream = File.OpenRead(localPath))
@@ -148,28 +151,28 @@ namespace FileSyncServer
                         if (packet.StartPos > stream.Length)
                         {
                             Log.Error($"请求的位置{packet.StartPos}超出该文件'{localPath}'的大小{stream.Length}");
-                            _session.SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
+                            _session.SendMessage(new FileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path, false));
                         }
                         if (stream.Length == 0)
                         {
                             var lastWriteTime = fileInfo.LastWriteTime.Ticks;
-                            var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Empty, packet.Path);
+                            var response = new FileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Empty, packet.Path, false);
                             response.LastWriteTime = lastWriteTime;
-                            _session.SendPacket(response);
+                            _session.SendMessage(response);
                         }
                         else
                         {
                             stream.Seek(packet.StartPos, SeekOrigin.Begin);
 
                             var lastWriteTime = fileInfo.LastWriteTime.Ticks;
-                            var buffer = new byte[PacketFileContentDetailResponse.MaxDataSize];
-                            var response = new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Content, packet.Path);
+                            var buffer = new byte[FileContentDetailResponse.MaxDataSize];
+                            var response = new FileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.Content, packet.Path, false);
                             response.Pos = stream.Position;
                             response.FileDataLength = stream.Read(buffer);
                             response.FileData = buffer.Take(response.FileDataLength).ToArray();
                             response.FileDataTotal = stream.Length;
                             response.LastWriteTime = lastWriteTime;
-                            _session.SendPacket(response);
+                            _session.SendMessage(response);
                         }
                     }
                 }
@@ -177,24 +180,24 @@ namespace FileSyncServer
             catch (Exception ex)
             {
                 Log.Error(ex.ToString());
-                _session.SendPacket(new PacketFileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path));
+                _session.SendMessage(new FileContentDetailResponse(packet.ClientId, packet.RequestId, FileResponseType.FileReadError, packet.Path, false));
             }
         }
-        private void DoFileListRequest(PacketFileListRequest packet)
+        private void DoFileListRequest(FileListRequest packet)
         {
             Log.Information("收到读取文件列表请求");
 
             var localPath = System.IO.Path.Combine(_folder, packet.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
-            var output = new List<PacketFileListDetailResponse>();
+            var output = new List<FileListDetailResponse>();
             GetFiles(packet.ClientId, packet.RequestId, new DirectoryInfo(localPath), packet.DaysBefore <= 0 ? null : DateTime.Now.AddDays(0 - packet.DaysBefore), ref output);
 
-            var fileListInfoResponse = new PacketFileListInfoResponse(packet.ClientId, packet.RequestId, output.LongCount(), output.Sum(f => f.FileLength));
-            _session.SendPacket(fileListInfoResponse);
+            var fileListInfoResponse = new FileListInfoResponse(packet.ClientId, packet.RequestId, output.LongCount(), output.Sum(f => f.FileLength),true);
+            _session.SendMessage(fileListInfoResponse);
 
             foreach (var file in output)
             {
                 file.Path = file.Path.Replace(_folder, "");
-                _session.SendPacket(file);
+                _session.SendMessage(file);
             }
         }
         protected void OnSocketError(SocketSession socketSession, Exception e)
@@ -208,7 +211,7 @@ namespace FileSyncServer
                     OnDisconnect(this);
             }
         }
-        private void GetFiles(int clientId, long requestId, DirectoryInfo directory, DateTime? createBefore, ref List<PacketFileListDetailResponse> result)
+        private void GetFiles(int clientId, long requestId, DirectoryInfo directory, DateTime? createBefore, ref List<FileListDetailResponse> result)
         {
             try
             {
@@ -216,7 +219,7 @@ namespace FileSyncServer
                 {
                     var query = from r in directory.GetFiles("*.*")
                                 where r.Extension != ".sync" && ((createBefore != null && r.CreationTime >= createBefore) || createBefore == null)
-                                select new PacketFileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0, r.FullName);
+                                select new FileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0, r.FullName,true);
 
                     result.AddRange(query.Distinct());
 
@@ -227,7 +230,7 @@ namespace FileSyncServer
 
                         query = from r in subDir.GetFiles("*.*")
                                 where r.Extension != ".sync" && ((createBefore != null && r.CreationTime >= createBefore) || createBefore == null)
-                                select new PacketFileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0, r.FullName);
+                                select new FileListDetailResponse(clientId, requestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0, r.FullName, true);
 
                         result.AddRange(query.Distinct());
                     }

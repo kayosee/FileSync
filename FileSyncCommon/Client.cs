@@ -1,6 +1,9 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using System.Text.Json.Serialization;
+using FileSyncCommon.Messages;
+using FileSyncCommon.Messages;
+using FileSyncCommon.Tools;
 
 namespace FileSyncCommon
 {
@@ -24,7 +27,7 @@ namespace FileSyncCommon
         private volatile bool _running;
         private int _deleteDaysBefore;
 
-        public delegate void FolderListResponseHandler(PacketFolderListResponse response);
+        public delegate void FolderListResponseHandler(FolderListResponse response);
         public delegate void DisconnectedHandler();
         public delegate void LoginHandler();
 
@@ -36,7 +39,16 @@ namespace FileSyncCommon
         public int ClientId { get => _clientId; set => _clientId = value; }
         public string LocalFolder { get => _localFolder; set => _localFolder = value; }
         public int Interval { get => _interval; set => _interval = value; }
-        public string Password { get => _password; set => _password = value; }
+        public string Password
+        {
+            get => _password; set
+            {
+                _password = value;
+                _encrypt = !string.IsNullOrEmpty(_password);
+                var bytes = System.Text.Encoding.UTF8.GetBytes(_password);
+                _encryptKey = bytes.Aggregate((s, t) => s ^= t);
+            }
+        }
         public bool IsConnected
         {
             get
@@ -50,40 +62,44 @@ namespace FileSyncCommon
         public bool Running { get => _running; }
         public int SyncDaysBefore { get => _syncDaysBefore; set => _syncDaysBefore = value; }
         public int DeleteDaysBefore { get => _deleteDaysBefore; set => _deleteDaysBefore = value; }
-
-        private void OnReceivePackage(Packet packet)
+        private void OnSendPackage(Messages.Message packet)
+        {
+            if (packet is Request request)
+                _request.Increase(request.RequestId);
+        }
+        private void OnReceivePackage(Messages.Message packet)
         {
             if (packet != null)
             {
-                switch (packet.DataType)
+                switch (packet.MessageType)
                 {
-                    case PacketType.AuthenticateResponse:
-                        DoAuthenticateResponse((PacketAuthenticateResponse)packet);
+                    case MessageType.AuthenticateResponse:
+                        DoAuthenticateResponse((AuthenticateResponse)packet);
                         break;
-                    case PacketType.FileListInfoResponse:
-                        DoFileListInfoResponse((PacketFileListInfoResponse)packet);
+                    case MessageType.FileListInfoResponse:
+                        DoFileListInfoResponse((FileListInfoResponse)packet);
                         break;
-                    case PacketType.FileListDetailResponse:
-                        DoFileListDetailResponse((PacketFileListDetailResponse)packet);
+                    case MessageType.FileListDetailResponse:
+                        DoFileListDetailResponse((FileListDetailResponse)packet);
                         break;
-                    case PacketType.FileContentInfoResponse:
-                        DoFileContentInfoResponse((PacketFileContentInfoResponse)packet);
+                    case MessageType.FileContentInfoResponse:
+                        DoFileContentInfoResponse((FileContentInfoResponse)packet);
                         break;
-                    case PacketType.FileContentDetailResponse:
-                        DoFileContentDetailResponse((PacketFileContentDetailResponse)packet);
+                    case MessageType.FileContentDetailResponse:
+                        DoFileContentDetailResponse((FileContentDetailResponse)packet);
                         break;
-                    case PacketType.FolderListResponse:
-                        DoFolderListResponse((PacketFolderListResponse)packet);
+                    case MessageType.FolderListResponse:
+                        DoFolderListResponse((FolderListResponse)packet);
                         break;
                 }
             }
         }
-        private void DoFolderListResponse(PacketFolderListResponse packet)
+        private void DoFolderListResponse(FolderListResponse packet)
         {
             if (OnFolderListResponse != null)
                 OnFolderListResponse(packet);
         }
-        private void DoAuthenticateResponse(PacketAuthenticateResponse packet)
+        private void DoAuthenticateResponse(AuthenticateResponse packet)
         {
             if (!packet.OK)
             {
@@ -98,21 +114,21 @@ namespace FileSyncCommon
                 OnLogin?.Invoke();
             }
         }
-        private void DoFileContentInfoResponse(PacketFileContentInfoResponse packet)
+        private void DoFileContentInfoResponse(FileContentInfoResponse packet)
         {
             LogInformation($"发起请求文件信息: {packet.Path}");
 
-            var response = new PacketFileContentDetailRequest(_clientId, DateTime.Now.Ticks, packet.LastPos, packet.Path);
+            var response = new FileContentDetailRequest(_clientId, DateTime.Now.Ticks, packet.LastPos, packet.Path);
             _request.Increase(response.RequestId, packet.TotalCount);
             _request.Decrease(packet.RequestId);
 
-            _session.SendPacket(response);
+            _session.SendMessage(response);
         }
-        private void DoFileListInfoResponse(PacketFileListInfoResponse packet)
+        private void DoFileListInfoResponse(FileListInfoResponse packet)
         {
             _request.Increase(packet.RequestId, packet.FileCount);
         }
-        private void DoFileContentDetailResponse(PacketFileContentDetailResponse fileResponse)
+        private void DoFileContentDetailResponse(FileContentDetailResponse fileResponse)
         {
             var path = System.IO.Path.Combine(_localFolder, fileResponse.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             switch (fileResponse.ResponseType)
@@ -149,14 +165,14 @@ namespace FileSyncCommon
                             else //写入位置信息
                             {
                                 FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, fileResponse.Pos + fileResponse.FileDataLength);
-                                _session.SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
+                                _session.SendMessage(new FileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
                                 _request.Decrease(fileResponse.RequestId);
                             }
                         }
                         catch (Exception e)
                         {
                             LogError(e.Message, e);
-                            _session.SendPacket(new PacketFileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path));
+                            _session.SendMessage(new FileContentDetailRequest(_clientId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path));
                         }
                         break;
                     }
@@ -170,10 +186,10 @@ namespace FileSyncCommon
                     break;
             }
         }
-        private void DoFileListDetailResponse(PacketFileListDetailResponse fileInformation)
+        private void DoFileListDetailResponse(FileListDetailResponse fileInformation)
         {
             var file = System.IO.Path.Combine(_localFolder, fileInformation.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
-            var request = new PacketFileContentInfoRequest(_clientId, DateTime.Now.Ticks, 0, 0, fileInformation.Path);
+            var request = new FileContentInfoRequest(_clientId, DateTime.Now.Ticks, 0, 0, fileInformation.Path);
 
             var localFileInfo = new System.IO.FileInfo(file);
             if (!localFileInfo.Exists)
@@ -185,20 +201,20 @@ namespace FileSyncCommon
                         var pos = FileOperator.GetLastPosition(file + ".sync");
                         request.Checksum = FileOperator.GetCrc32(file + ".sync", pos);
                         request.LastPos = pos;
-                        _session.SendPacket(request);
+                        _session.SendMessage(request);
                         _request.Increase(request.RequestId);
                         LogInformation($"正在检验续传文件:{fileInformation.Path}");
                     }
                     catch (Exception ex)
                     {
-                        _session.SendPacket(request);
+                        _session.SendMessage(request);
                         _request.Increase(request.RequestId);
                         LogInformation($"文件校验失败:{fileInformation.Path}，重新下载。");
                     }
                 }
                 else
                 {
-                    _session.SendPacket(request);
+                    _session.SendMessage(request);
                     _request.Increase(request.RequestId);
                     LogInformation($"文件不存在:{fileInformation.Path}，发起下载。");
                 }
@@ -224,7 +240,7 @@ namespace FileSyncCommon
                 }
                 else
                 {
-                    _session.SendPacket(request);
+                    _session.SendMessage(request);
                     _request.Increase(request.RequestId);
                     LogInformation($"{fileInformation.Path}文件不一致，需要更新");
                 }
@@ -243,9 +259,10 @@ namespace FileSyncCommon
         {
             _session = new SocketSession(_socket, _encrypt, _encryptKey);
             _session.OnReceivePackage += OnReceivePackage;
+            _session.OnSendPackage += OnSendPackage;
             _session.OnSocketError += OnSocketError;
-            var packet = new PacketAuthenticateRequest(0, 0, _password);
-            _session.SendPacket(packet);
+            var packet = new AuthenticateRequest(0, 0, _password);
+            _session.SendMessage(packet);
         }
         public bool Reconnect()
         {
@@ -278,7 +295,7 @@ namespace FileSyncCommon
             _authorized = false;
             OnDisconnected?.Invoke();
         }
-        public void Start(string localFolder, string remoteFolder, int syncDaysBefore,int deleteDaysBefore, int interval)
+        public void Start(string localFolder, string remoteFolder, int syncDaysBefore, int deleteDaysBefore, int interval)
         {
             if (!_authorized)
                 throw new UnauthorizedAccessException("尚未登录成功");
@@ -306,9 +323,9 @@ namespace FileSyncCommon
 
                 if (_request.IsEmpty && IsConnected)
                 {
-                    var packet = new PacketFileListRequest(_clientId, DateTime.Now.Ticks, syncDaysBefore, _remoteFolder);
+                    var packet = new FileListRequest(_clientId, DateTime.Now.Ticks, syncDaysBefore, _remoteFolder);
                     _request.Increase(packet.RequestId, 0);
-                    _session.SendPacket(packet);
+                    _session.SendMessage(packet);
 
                 }
             }, null, 0, (int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
@@ -320,7 +337,7 @@ namespace FileSyncCommon
         public void QueryFolders(string root)
         {
             if (IsConnected)
-                _session.SendPacket(new PacketFolderListRequest(_clientId, DateTime.Now.Ticks, root));
+                _session.SendMessage(new FolderListRequest(_clientId, DateTime.Now.Ticks, root));
         }
         public void Dispose()
         {

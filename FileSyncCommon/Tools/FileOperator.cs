@@ -1,4 +1,5 @@
-﻿using Force.Crc32;
+﻿using FileSyncCommon.Exceptions;
+using Force.Crc32;
 using Serilog;
 using System;
 using System.Collections.Concurrent;
@@ -14,7 +15,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
-namespace FileSyncCommon;
+namespace FileSyncCommon.Tools;
 
 public class FileOperator
 {
