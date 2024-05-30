@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text;
 using FileSyncCommon.Tools;
 using System;
+using System.Diagnostics;
 namespace FileSyncCommon
 {
     public sealed class SocketSession
@@ -19,7 +20,6 @@ namespace FileSyncCommon
         private Thread _consumer;
         private Socket _socket;
         private FixedLengthQueue<Messages.Message> _packetQueue;
-        private static ConcurrentDictionary<int, ConstructorInfo> _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
         public bool Encrypt { get => _encrypt; set => _encrypt = value; }
         public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
         public Socket Socket { get => _socket; set => _socket = value; }
@@ -88,34 +88,35 @@ namespace FileSyncCommon
         }
         public void SendMessage(Message message)
         {
+            foreach (var packet in message.ToPackets())
+            {
+                Write(packet.Serialize());
+            };
+
+            if (OnSendPackage != null)
+                OnSendPackage(message);
+        }
+        private bool Read(int length, out byte[] buffer, int maxWaitSeconds = -1)
+        {
+            buffer = new byte[length];
             try
             {
-                foreach (var packet in message.ToPackets())
-                {
-                    Write(packet.Serialize());
-                };
+                if (maxWaitSeconds > 0)
+                    _socket.ReceiveTimeout = (int)TimeSpan.FromSeconds(maxWaitSeconds).TotalMilliseconds;
+                else
+                    _socket.ReceiveTimeout = -1;
 
-                if (OnSendPackage != null)
-                    OnSendPackage(message);
+                _socket.Receive(buffer, length, SocketFlags.None);
+                if (_encrypt)
+                    buffer.Xor(_encryptKey);
+
+                return true;
             }
             catch (Exception e)
             {
                 DoSocketError(this, e);
+                return false;
             }
-        }
-        private byte[] Read(int length, int maxWaitSeconds = -1)
-        {
-            if (maxWaitSeconds > 0)
-                _socket.ReceiveTimeout = (int)TimeSpan.FromSeconds(maxWaitSeconds).TotalMilliseconds;
-            else
-                _socket.ReceiveTimeout = -1;
-
-            byte[] buffer = new byte[length];
-            _socket.Receive(buffer, length, SocketFlags.None);
-            if (_encrypt)
-                buffer.ForEach<byte>(f => f ^= _encryptKey);
-
-            return buffer;
         }
         private Packet? ReadPacket(int maxWaitSeconds = -1)
         {
@@ -123,30 +124,41 @@ namespace FileSyncCommon
             {
                 Packet packet = new Packet();
 
-                var buffer = Read(Packet.Flag.Length, maxWaitSeconds);
+                if (!Read(Packet.Flag.Length, out var buffer, maxWaitSeconds))
+                    return null;
+
                 if (Encoding.UTF8.GetString(buffer) != Encoding.UTF8.GetString(Packet.Flag))
                     throw new InvalidDataException("包头标志不正确");
 
-                buffer = Read(sizeof(long), maxWaitSeconds);
-                packet.TotalLength = BitConverter.ToInt64(buffer);
+                if (!Read(sizeof(long), out buffer, maxWaitSeconds))
+                    return null;
 
-                buffer = Read(sizeof(int), maxWaitSeconds);
-                packet.Sequence = BitConverter.ToInt32(buffer);
+                packet.TotalLength = BitConverter.ToUInt64(buffer);
+
+                if (!Read(sizeof(int), out buffer, maxWaitSeconds))
+                    return null;
+
+                packet.Sequence = BitConverter.ToUInt32(buffer);
                 if (packet.Sequence < 0)
                     throw new InvalidDataException(nameof(packet.Sequence) + "序号无效");
 
-                buffer = Read(sizeof(short), maxWaitSeconds);
-                packet.SliceLength = BitConverter.ToInt16(buffer);
+                if (!Read(sizeof(short), out buffer, maxWaitSeconds))
+                    return null;
+
+                packet.SliceLength = BitConverter.ToUInt16(buffer);
                 if (packet.SliceLength <= 0)
                     throw new InvalidDataException(nameof(packet.SliceLength) + "长度无效");
 
-                packet.SliceData = Read(packet.SliceLength, maxWaitSeconds);                
+                if (!Read(packet.SliceLength, out buffer, maxWaitSeconds))
+                    return null;
+
+                packet.SliceData = buffer;
                 return packet;
 
             }
             catch (Exception e)
             {
-                OnSocketError?.Invoke(this, e);
+                Console.WriteLine(e.ToString());
                 return null;
             }
         }
@@ -159,7 +171,7 @@ namespace FileSyncCommon
                 Crc32Algorithm.ComputeAndWriteToEnd(buffer);
                 */
                 if (_encrypt)
-                    buffer.ForEach<byte>(f => f ^= _encryptKey);
+                    buffer.Xor(_encryptKey);
                 _socket.Send(buffer);
                 return buffer.Length;
             }
@@ -171,7 +183,7 @@ namespace FileSyncCommon
         }
         private Message? ReadMessage()
         {
-            long totalLength = 0;
+            ulong totalLength = 0;
             var packets = new List<Packet>();
             do
             {

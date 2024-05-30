@@ -108,7 +108,7 @@ public class FileOperator
             stream.Flush();
             stream.Close();
         }
-
+        /*
         using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read))
         {
             var x = stream.Seek(position, SeekOrigin.Begin);
@@ -124,6 +124,7 @@ public class FileOperator
             if (newChecksum != oldChecksum)
                 throw new FileChecksumException(path, position, oldChecksum, newChecksum);
         }
+        */
     }
     public static void SetupFile(string path, long lastWriteTime)
     {

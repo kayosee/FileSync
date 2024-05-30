@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Intrinsics.Arm;
 using System.Text;
 using System.Text.Json.Serialization;
 using FileSyncCommon.Messages;
@@ -22,12 +23,11 @@ namespace FileSyncCommon
         private string _password;
         private bool _authorized;
         private Timer _timer;
-        private RequestCounter<long> _request = new RequestCounter<long>();
         private SocketSession _session;
         private Socket _socket;
         private volatile bool _running;
         private int _deleteDaysBefore;
-
+        private RequestCounter<long> _requestCounter = new RequestCounter<long>(TimeSpan.FromMinutes(30));
         public delegate void FolderListResponseHandler(FolderListResponse response);
         public delegate void DisconnectedHandler();
         public delegate void LoginHandler();
@@ -40,6 +40,7 @@ namespace FileSyncCommon
         public int ClientId { get => _clientId; set => _clientId = value; }
         public string LocalFolder { get => _localFolder; set => _localFolder = value; }
         public int Interval { get => _interval; set => _interval = value; }
+        private DateTime? _lastActiveTime;
         public string Password
         {
             get => _password; set
@@ -63,20 +64,23 @@ namespace FileSyncCommon
         public bool Running { get => _running; }
         public int SyncDaysBefore { get => _syncDaysBefore; set => _syncDaysBefore = value; }
         public int DeleteDaysBefore { get => _deleteDaysBefore; set => _deleteDaysBefore = value; }
-        private void OnSendPackage(Messages.Message messages)
+        private void OnSendPackage(Message message)
         {
-            if (messages is Request request)
-                _request.Increase(request.RequestId);
+            if (message is FileContentInfoRequest fileContentInfoRequest)
+            {
+                _requestCounter.Increase(fileContentInfoRequest.Path.Crc32());
+            }
         }
         private void OnReceivePackage(Message message)
         {
+            if(message is FileContentDetailResponse fileContentDetailResponse)
+            {
+                if(fileContentDetailResponse.Latest)
+                    _requestCounter.Remove(fileContentDetailResponse.Path.Crc32());
+            }
+
             if (message != null)
             {
-                if(message is Response response)
-                {
-                    if(response.Latest)
-                        _request.Remove(response.RequestId);
-                }
                 switch (message.MessageType)
                 {
                     case MessageType.AuthenticateResponse:
@@ -218,6 +222,7 @@ namespace FileSyncCommon
                 if (localFileInfo.Length == fileInformation.FileLength && localFileInfo.LastWriteTime.Ticks == fileInformation.LastWriteTime)//请求CHECKSUM，看看是不是一样
                 {
                     LogInformation($"{fileInformation.Path}文件一致，无须更新");
+                    _requestCounter.Decrease(fileInformation.Path.Crc32());
                 }
                 else
                 {
@@ -228,6 +233,7 @@ namespace FileSyncCommon
         }
         protected void OnSocketError(SocketSession socketSession, Exception e)
         {
+            LogError(e.Message, e);
             Disconnect();
             while (!_socket.Connected)
             {
@@ -274,7 +280,6 @@ namespace FileSyncCommon
         }
         public void Disconnect()
         {
-            _request.Clear();
             _session.Disconnect();
             _authorized = false;
             OnDisconnected?.Invoke();
@@ -293,7 +298,6 @@ namespace FileSyncCommon
             _syncDaysBefore = syncDaysBefore;
             _deleteDaysBefore = deleteDaysBefore;
             _interval = interval;
-            _request.Clear();
             if (_timer != null)
                 _timer.Dispose();
 
@@ -305,11 +309,15 @@ namespace FileSyncCommon
                 if (_deleteDaysBefore > 0)
                     FileOperator.DeleteOldFile(localFolder, DateTime.Now - TimeSpan.FromDays(_deleteDaysBefore));
 
-                if (_request.IsEmpty && IsConnected)
+                if (IsConnected)
                 {
-                    var messages = new FileListRequest(_clientId, DateTime.Now.Ticks, syncDaysBefore, _remoteFolder);
-                    _session.SendMessage(messages);
-
+                    if (!_requestCounter.IsEmpty)
+                    {
+                        Console.WriteLine("开始新同步");
+                        var messages = new FileListRequest(_clientId, DateTime.Now.Ticks, syncDaysBefore, _remoteFolder);
+                        _session.SendMessage(messages);
+                        _lastActiveTime = DateTime.Now;
+                    }
                 }
             }, null, 0, (int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
         }

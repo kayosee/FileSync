@@ -136,6 +136,7 @@ public class ByteArrayStream : IDisposable
         _readPos += size;
         return result;
     }
+
     public long Seek(long offset, SeekOrigin origin)
     {
         switch (origin)
@@ -185,6 +186,14 @@ public class ByteArrayStream : IDisposable
         var buffer = BitConverter.GetBytes(value);
         Write(buffer, 0, buffer.Length);
     }
+    public void Write(ushort value)
+    {
+        if (_writePos + sizeof(ushort) >= _data.Length)
+            SetLength(_writePos + sizeof(ushort));
+
+        var buffer = BitConverter.GetBytes(value);
+        Write(buffer, 0, buffer.Length);
+    }
     public void Write(int value)
     {
         if (_writePos + sizeof(int) >= _data.Length)
@@ -209,6 +218,15 @@ public class ByteArrayStream : IDisposable
         var buffer = BitConverter.GetBytes(value);
         Write(buffer, 0, buffer.Length);
     }
+    public void Write(ulong value)
+    {
+        if (_writePos + sizeof(ulong) >= _data.Length)
+            SetLength(_writePos + sizeof(ulong));
+
+        var buffer = BitConverter.GetBytes(value);
+        Write(buffer, 0, buffer.Length);
+    }
+
     public byte[] GetBuffer()
     {
         return _data;

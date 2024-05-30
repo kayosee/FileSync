@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -12,18 +13,18 @@ namespace FileSyncCommon.Messages
     {
         public static readonly byte[] Flag = new byte[] { 75, 65, 89, 79 };
 
-        private long _totalLength;
-        private int _sequence;
-        private short _sliceLength;
+        private ulong _totalLength;
+        private uint _sequence;
+        private ushort _sliceLength;
         private byte[] _sliceData;
-        public const ushort MaxLength = ushort.MaxValue;
-        public long TotalLength { get => _totalLength; set => _totalLength = value; }
-        public short SliceLength { get => _sliceLength; set => _sliceLength = value; }
+        public const ushort MaxLength = 8190;
+        public ulong TotalLength { get => _totalLength; set => _totalLength = value; }
+        public ushort SliceLength { get => _sliceLength; set => _sliceLength = value; }
         public byte[] SliceData { get => _sliceData; set => _sliceData = value; }
-        public int Sequence { get => _sequence; set => _sequence = value; }
+        public uint Sequence { get => _sequence; set => _sequence = value; }
 
         public Packet() { }
-        public Packet(long totalLength, int sequence, short sliceLength, byte[] data)
+        public Packet(ulong totalLength, uint sequence, ushort sliceLength, byte[] data)
         {
             _totalLength = totalLength;
             _sequence = sequence;
@@ -37,15 +38,17 @@ namespace FileSyncCommon.Messages
                 var _ = new byte[Flag.Length];
                 stream.Read(_, 0, _.Length);
 
-                _totalLength = stream.ReadInt64();
-                _sequence = stream.ReadInt32();
-                _sliceLength = stream.ReadInt16();
+                _totalLength = stream.ReadUInt64();
+                _sequence = stream.ReadUInt32();
+                _sliceLength = stream.ReadUInt16();
                 _sliceData = new byte[_sliceLength];
                 stream.Read(_sliceData, 0, _sliceLength);
             }
         }
         public byte[] Serialize()
         {
+            Debug.Assert(_sequence >= 0);
+            Debug.Assert(_sliceLength >= 0);
             using (var stream = new ByteArrayStream())
             {
                 stream.Write(Flag, 0, Flag.Length);

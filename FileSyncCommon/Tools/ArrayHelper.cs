@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Force.Crc32;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -36,5 +37,23 @@ public static class ArrayHelper
         {
             source.SetValue(func.Invoke((TSource)source.GetValue(i)), i);
         }
+    }
+    public static void Xor(this byte[] source, byte key)
+    {
+        if (source == null)
+        {
+            throw new ArgumentNullException("source");
+        }
+
+        Span<byte> span = source;
+        for (int i = 0; i < span.Length; i++)
+        {
+            span[i] ^= key;
+        }
+    }
+    public static uint Crc32(this string text)
+    {
+        var buffer = Encoding.UTF8.GetBytes(text, 0, text.Length);
+        return Crc32Algorithm.Compute(buffer);
     }
 }

@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using FileSyncCommon.Messages;
@@ -15,9 +17,11 @@ namespace FileSyncCommon.Messages
     {
         private byte _messageType;
         private int _clientId;
+        private static ConcurrentDictionary<int, ConstructorInfo> _constructors = new ConcurrentDictionary<int, ConstructorInfo>();
 
         public MessageType MessageType { get => (MessageType)_messageType; set => _messageType = (byte)value; }
         public int ClientId { get => _clientId; set => _clientId = value; }
+
         public Message(ByteArrayStream stream)
         {
             _messageType = stream.ReadByte();
@@ -45,19 +49,45 @@ namespace FileSyncCommon.Messages
         public static Message? FromStream(ByteArrayStream stream)
         {
             if (stream == null)
-                throw new ArgumentNullException("字节流ByteArrayStream为空");
+            {
+                Console.WriteLine("字节流ByteArrayStream为空");
+                return null;
+            }
 
             var buffer = new byte[1];
             stream.Peek(buffer, 0, buffer.Length);
             var messageType = buffer[0];
             if (!Enum.IsDefined(typeof(MessageType), (int)messageType))
-                throw new InvalidDataException("包类型不正确");
+            {
+                Console.WriteLine("包类型不正确");
+                return null;
+            }
 
-            var type = typeof(Message).Assembly.GetTypes().First(f => f.Name == Enum.GetName((MessageType)messageType));
-            Debug.Assert(type != null);
-            var constructor = type.GetConstructors().First(f => f.GetParameters().Any(f => f.ParameterType == typeof(ByteArrayStream)));
-            Message? sessionData = constructor.Invoke(new object[] { stream }) as Message;
+            Message? sessionData = (Message?)ConvertMessage(messageType, stream);
             return sessionData;
+        }
+
+        private static object? ConvertMessage(int messageType, ByteArrayStream stream)
+        {
+            ConstructorInfo constructor = null;
+            if (_constructors.ContainsKey(messageType))
+            {
+                constructor = _constructors[messageType];
+            }
+            else
+            {
+                var type = typeof(Message).Assembly.GetTypes().First(f => f.Name == Enum.GetName((MessageType)messageType));
+                constructor = type.GetConstructors().First(f => f.GetParameters().Any(f => f.ParameterType == typeof(ByteArrayStream)));
+                if (constructor != null)
+                {
+                    _constructors.AddOrUpdate(messageType, constructor, (key, value) => value);
+                }
+            }
+
+            if (constructor != null)
+                return constructor.Invoke(new object[] { stream });
+
+            return null;
         }
         public static Message? FromPackets(Packet[] packets)
         {
@@ -81,20 +111,29 @@ namespace FileSyncCommon.Messages
             {
                 return new Packet[1]
                 {
-                    new Packet(total,0,(short)total,stream.GetBuffer())
+                    new Packet((ulong)total,0,(ushort)total,stream.GetBuffer())
                 };
             }
 
             var num = Math.Ceiling((double)stream.Length / Packet.MaxLength);
-            var size = (short)Math.Floor(stream.Length / num);
+            var size = (ushort)Math.Ceiling(stream.Length / num);
             var result = new Packet[(int)num];
-            for (var i = 0; i < num; i++)
+            var remains = (ulong)stream.Length;
+            uint sequence = 0;
+            while (remains > 0)
             {
-                result[i].TotalLength = stream.Length;
-                result[i].Sequence = i;
-                result[i].SliceData = new byte[size];
-                result[i].SliceLength = size;
-                stream.Read(result[i].SliceData, 0, size);
+                if (remains < size)
+                {
+                    size = (ushort)remains;
+                }
+                result[sequence] = new Packet();
+                result[sequence].TotalLength = (ulong)stream.Length;
+                result[sequence].Sequence = sequence;
+                result[sequence].SliceData = new byte[size];
+                result[sequence].SliceLength = size;
+                stream.Read(result[sequence].SliceData, 0, size);
+                remains -= (ulong)size;
+                sequence++;
             }
             return result;
         }
