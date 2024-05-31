@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -10,14 +11,16 @@ public enum MessageType
 {
     AuthenticateRequest,
     AuthenticateResponse,
+    [Obsolete]
     Handshake,
-    FileListRequest,
-    FileListInfoResponse,
+    FileInfoRequest,
+    FileInfoResponse,
+    FileListTotalRequest,
+    FileListTotalResponse,
+    FileListDetailRequest,
     FileListDetailResponse,
-    FileContentInfoRequest,
-    FileContentInfoResponse,
-    FileContentDetailRequest,
-    FileContentDetailResponse,
+    FileContentRequest,
+    FileContentResponse,
     FolderListRequest,
     FolderListResponse,
 }

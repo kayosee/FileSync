@@ -10,18 +10,16 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon.Messages;
 
-public class FileContentDetailResponse : Response
+public class FileContentResponse : FileResponse
 {
     private byte _responseType;
-    private int _pathLength;
-    private string _path;
     private long _pos;
     private long _lastWriteTime;
     private int _fileDataLength;
     private long _fileDataTotal;
     private uint _fileDataChecksum;
     private byte[] _fileData;
-    public const int MaxDataSize = 38284;
+    public const int MaxDataSize = 80000;
     /// <summary>
     /// 最后一个文件段
     /// </summary>
@@ -37,16 +35,6 @@ public class FileContentDetailResponse : Response
         get
         {
             return (_fileDataTotal - _pos + _fileDataLength) / MaxDataSize;
-        }
-    }
-    /// <summary>
-    /// 路径
-    /// </summary>
-    public string Path
-    {
-        get => _path; set
-        {
-            _path = value;
         }
     }
     /// <summary>
@@ -80,26 +68,19 @@ public class FileContentDetailResponse : Response
     public override bool Equals(object? obj)
     {
         if (obj == null) return false;
-        if (!(obj is FileContentDetailResponse)) return false;
-        FileContentDetailResponse other = (FileContentDetailResponse)obj;
+        if (!(obj is FileContentResponse)) return false;
+        FileContentResponse other = (FileContentResponse)obj;
 
         return other.Path == Path && other.Pos == Pos;
     }
-    public FileContentDetailResponse(int clientId, long requestId, FileResponseType responseType, string path,bool latest) : base(MessageType.FileContentDetailResponse, clientId, requestId,latest)
+    public FileContentResponse(int clientId, long requestId, FileResponseType responseType, string path,bool latest) : base(MessageType.FileContentResponse, clientId, requestId,latest,path)
     {
         _responseType = (byte)responseType;
-        _path = path;        
     }
     protected override ByteArrayStream GetStream()    
     {
         var stream = base.GetStream();
         stream.Write(_responseType);
-
-        byte[] buffer = Encoding.UTF8.GetBytes(Path);
-        _pathLength = buffer.Length;
-        stream.Write(_pathLength);
-
-        stream.Write(buffer, 0, buffer.Length);
         stream.Write(_pos);
         stream.Write(_lastWriteTime);
         stream.Write(_fileDataLength);
@@ -114,23 +95,17 @@ public class FileContentDetailResponse : Response
 
         return stream;
     }
-    public FileContentDetailResponse(ByteArrayStream stream):base(stream)
+    public FileContentResponse(ByteArrayStream stream):base(stream)
     {
         _responseType = stream.ReadByte();
-        _pathLength = stream.ReadInt32();
-
-        byte[] buffer = new byte[_pathLength];
-        stream.Read(buffer, 0, _pathLength);
-        _path = Encoding.UTF8.GetString(buffer).TrimEnd('\0');
-
-        _pos = stream.ReadInt64();
-        _lastWriteTime = stream.ReadInt64();
-        _fileDataLength = stream.ReadInt32();
-        _fileDataTotal = stream.ReadInt64();
+        _pos = stream.ReadLong();
+        _lastWriteTime = stream.ReadLong();
+        _fileDataLength = stream.ReadInt();
+        _fileDataTotal = stream.ReadLong();
 
         if (_fileDataLength > 0)
         {
-            _fileDataChecksum = stream.ReadUInt32();
+            _fileDataChecksum = stream.ReadUInt();
             _fileData = new byte[_fileDataLength];
             stream.Read(_fileData, 0, _fileDataLength);
         }

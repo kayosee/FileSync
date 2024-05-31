@@ -11,8 +11,6 @@ namespace FileSyncCommon.Messages
 {
     public class Packet : ISerialization
     {
-        public static readonly byte[] Flag = new byte[] { 75, 65, 89, 79 };
-
         private ulong _totalLength;
         private uint _sequence;
         private ushort _sliceLength;
@@ -35,12 +33,9 @@ namespace FileSyncCommon.Messages
         {
             using (var stream = new ByteArrayStream(buffer))
             {
-                var _ = new byte[Flag.Length];
-                stream.Read(_, 0, _.Length);
-
-                _totalLength = stream.ReadUInt64();
-                _sequence = stream.ReadUInt32();
-                _sliceLength = stream.ReadUInt16();
+                _totalLength = stream.ReadULong();
+                _sequence = stream.ReadUInt();
+                _sliceLength = stream.ReadUShort();
                 _sliceData = new byte[_sliceLength];
                 stream.Read(_sliceData, 0, _sliceLength);
             }
@@ -51,7 +46,6 @@ namespace FileSyncCommon.Messages
             Debug.Assert(_sliceLength >= 0);
             using (var stream = new ByteArrayStream())
             {
-                stream.Write(Flag, 0, Flag.Length);
                 stream.Write(_totalLength);
                 stream.Write(_sequence);
                 stream.Write(_sliceLength);

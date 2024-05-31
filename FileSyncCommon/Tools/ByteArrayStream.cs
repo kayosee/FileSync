@@ -68,7 +68,7 @@ public class ByteArrayStream : IDisposable
 
         throw new EndOfStreamException();
     }
-    public ushort ReadUInt16()
+    public ushort ReadUShort()
     {
         var size = sizeof(ushort);
         if (_data.LongLength == 0 || _readPos + size > _data.LongLength)
@@ -80,7 +80,7 @@ public class ByteArrayStream : IDisposable
         return result;
     }
 
-    public uint ReadUInt32()
+    public uint ReadUInt()
     {
         var size = sizeof(uint);
         if (_data.LongLength == 0 || _readPos + size > _data.LongLength)
@@ -91,7 +91,7 @@ public class ByteArrayStream : IDisposable
         _readPos += size;
         return result;
     }
-    public ulong ReadUInt64()
+    public ulong ReadULong()
     {
         var size = sizeof(ulong);
         if (_data.LongLength == 0 || _readPos + size > _data.LongLength)
@@ -102,7 +102,7 @@ public class ByteArrayStream : IDisposable
         _readPos += size;
         return result;
     }
-    public short ReadInt16()
+    public short ReadShort()
     {
         var size = sizeof(short);
 
@@ -114,7 +114,7 @@ public class ByteArrayStream : IDisposable
         _readPos += size;
         return result;
     }
-    public int ReadInt32()
+    public int ReadInt()
     {
         var size = sizeof(int);
         if (_data.LongLength == 0 || _readPos + size > _data.LongLength)
@@ -125,7 +125,7 @@ public class ByteArrayStream : IDisposable
         _readPos += size;
         return result;
     }
-    public long ReadInt64()
+    public long ReadLong()
     {
         var size = sizeof(long);
         if (_data.LongLength == 0 || _readPos + size > _data.LongLength)
@@ -242,5 +242,18 @@ public class ByteArrayStream : IDisposable
         var result = _data[_readPos];
         _readPos += 1;
         return result;
+    }
+    public string ReadUTF8String()
+    {
+        int length = ReadInt();
+        var buffer = new byte[length];
+        Read(buffer, 0, length);
+        return Encoding.UTF8.GetString(buffer, 0, length);
+    }
+    public void WriteUTF8string(string text)
+    {
+        var buffer = Encoding.UTF8.GetBytes(text);
+        Write(buffer.Length);
+        Write(buffer, 0, buffer.Length);
     }
 }

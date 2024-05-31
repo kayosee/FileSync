@@ -5,9 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using FileSyncCommon.Tools;
 
-namespace FileSyncCommon.Messages   
+namespace FileSyncCommon.Messages
 {
-    public class FileListInfoResponse : Response
+    public class FileListTotalResponse : FileResponse
     {
         private long _fileCount;
         private long _totalSize;
@@ -19,13 +19,12 @@ namespace FileSyncCommon.Messages
         /// 合计文件容量
         /// </summary>
         public long TotalSize { get => _totalSize; set => _totalSize = value; }
-        public FileListInfoResponse(ByteArrayStream stream) : base(stream)
+        public FileListTotalResponse(ByteArrayStream stream) : base(stream)
         {
-            _fileCount = stream.ReadInt64();
-            _totalSize = stream.ReadInt64();
+            _fileCount = stream.ReadLong();
+            _totalSize = stream.ReadLong();
         }
-
-        public FileListInfoResponse(int clientId, long requestId, long fileCount, long totalSize, bool latest) : base(MessageType.FileListInfoResponse, clientId, requestId, latest)
+        public FileListTotalResponse(int clientId, long requestId, string path, long fileCount, long totalSize, bool latest) : base(MessageType.FileListTotalResponse, clientId, requestId, latest, path)
         {
             _fileCount = fileCount;
             _totalSize = totalSize;
@@ -33,7 +32,6 @@ namespace FileSyncCommon.Messages
         protected override ByteArrayStream GetStream()
         {
             var stream = base.GetStream();
-
             stream.Write(_fileCount);
             stream.Write(_totalSize);
             return stream;

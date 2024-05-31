@@ -8,6 +8,7 @@ using System.Text;
 using FileSyncCommon.Tools;
 using System;
 using System.Diagnostics;
+using Serilog;
 namespace FileSyncCommon
 {
     public sealed class SocketSession
@@ -96,7 +97,7 @@ namespace FileSyncCommon
             if (OnSendPackage != null)
                 OnSendPackage(message);
         }
-        private bool Read(int length, out byte[] buffer, int maxWaitSeconds = -1)
+        private bool Read(int length, out byte[] buffer, ref List<byte> whole, int maxWaitSeconds = -1)
         {
             buffer = new byte[length];
             try
@@ -107,6 +108,7 @@ namespace FileSyncCommon
                     _socket.ReceiveTimeout = -1;
 
                 _socket.Receive(buffer, length, SocketFlags.None);
+                whole.AddRange(buffer);
                 if (_encrypt)
                     buffer.Xor(_encryptKey);
 
@@ -123,42 +125,48 @@ namespace FileSyncCommon
             try
             {
                 Packet packet = new Packet();
+                var whole = new List<byte>();
 
-                if (!Read(Packet.Flag.Length, out var buffer, maxWaitSeconds))
-                    return null;
-
-                if (Encoding.UTF8.GetString(buffer) != Encoding.UTF8.GetString(Packet.Flag))
-                    throw new InvalidDataException("包头标志不正确");
-
-                if (!Read(sizeof(long), out buffer, maxWaitSeconds))
+                if (!Read(sizeof(ulong), out var buffer, ref whole, maxWaitSeconds))
                     return null;
 
                 packet.TotalLength = BitConverter.ToUInt64(buffer);
 
-                if (!Read(sizeof(int), out buffer, maxWaitSeconds))
+                if (!Read(sizeof(uint), out buffer, ref whole, maxWaitSeconds))
                     return null;
 
                 packet.Sequence = BitConverter.ToUInt32(buffer);
-                if (packet.Sequence < 0)
-                    throw new InvalidDataException(nameof(packet.Sequence) + "序号无效");
 
-                if (!Read(sizeof(short), out buffer, maxWaitSeconds))
+                if (!Read(sizeof(ushort), out buffer, ref whole, maxWaitSeconds))
                     return null;
 
                 packet.SliceLength = BitConverter.ToUInt16(buffer);
                 if (packet.SliceLength <= 0)
-                    throw new InvalidDataException(nameof(packet.SliceLength) + "长度无效");
+                {
+                    Log.Error($"长度无效:{packet.SliceLength}");
+                    return null;
+                }
 
-                if (!Read(packet.SliceLength, out buffer, maxWaitSeconds))
+                if (!Read(packet.SliceLength, out buffer, ref whole, maxWaitSeconds))
                     return null;
 
                 packet.SliceData = buffer;
+
+                if (!Read(sizeof(uint), out buffer, ref whole, maxWaitSeconds))
+                    return null;
+
+                if (!Crc32Algorithm.IsValidWithCrcAtEnd(whole.ToArray()))
+                {
+                    Log.Error("CRC检验错误！");
+                    return null;
+                }
+
                 return packet;
 
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.ToString());
+                Log.Error(e.ToString());
                 return null;
             }
         }
@@ -166,10 +174,8 @@ namespace FileSyncCommon
         {
             try
             {
-                /*
                 Array.Resize(ref buffer, buffer.Length + sizeof(uint));
                 Crc32Algorithm.ComputeAndWriteToEnd(buffer);
-                */
                 if (_encrypt)
                     buffer.Xor(_encryptKey);
                 _socket.Send(buffer);
@@ -187,7 +193,7 @@ namespace FileSyncCommon
             var packets = new List<Packet>();
             do
             {
-                var packet = ReadPacket(-1);
+                var packet = ReadPacket();
                 if (packet == null)
                     return null;
 

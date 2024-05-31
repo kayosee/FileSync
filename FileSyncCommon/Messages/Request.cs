@@ -20,7 +20,7 @@ namespace FileSyncCommon.Messages
         }
         protected Request(ByteArrayStream stream) : base(stream)
         {
-            _requestId = stream.ReadInt64();
+            _requestId = stream.ReadLong();
         }
         protected override ByteArrayStream GetStream()
         {

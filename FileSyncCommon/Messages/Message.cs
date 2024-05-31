@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using FileSyncCommon.Messages;
 using FileSyncCommon.Tools;
+using Serilog;
 
 namespace FileSyncCommon.Messages
 {
@@ -25,7 +26,7 @@ namespace FileSyncCommon.Messages
         public Message(ByteArrayStream stream)
         {
             _messageType = stream.ReadByte();
-            _clientId = stream.ReadInt32();
+            _clientId = stream.ReadInt();
         }
         public Message(MessageType messageType, int clientId) { _messageType = (byte)messageType; _clientId = clientId; }
         protected virtual ByteArrayStream GetStream()
@@ -50,7 +51,7 @@ namespace FileSyncCommon.Messages
         {
             if (stream == null)
             {
-                Console.WriteLine("字节流ByteArrayStream为空");
+                Log.Error("字节流ByteArrayStream为空");
                 return null;
             }
 
@@ -59,7 +60,7 @@ namespace FileSyncCommon.Messages
             var messageType = buffer[0];
             if (!Enum.IsDefined(typeof(MessageType), (int)messageType))
             {
-                Console.WriteLine("包类型不正确");
+                Log.Error("包类型不正确");
                 return null;
             }
 
@@ -119,21 +120,21 @@ namespace FileSyncCommon.Messages
             var size = (ushort)Math.Ceiling(stream.Length / num);
             var result = new Packet[(int)num];
             var remains = (ulong)stream.Length;
-            uint sequence = 0;
+            uint i = 0;
             while (remains > 0)
             {
                 if (remains < size)
                 {
                     size = (ushort)remains;
                 }
-                result[sequence] = new Packet();
-                result[sequence].TotalLength = (ulong)stream.Length;
-                result[sequence].Sequence = sequence;
-                result[sequence].SliceData = new byte[size];
-                result[sequence].SliceLength = size;
-                stream.Read(result[sequence].SliceData, 0, size);
+                result[i] = new Packet();
+                result[i].TotalLength = (ulong)stream.Length;
+                result[i].Sequence = i;
+                result[i].SliceData = new byte[size];
+                result[i].SliceLength = size;
+                stream.Read(result[i].SliceData, 0, size);
                 remains -= (ulong)size;
-                sequence++;
+                i++;
             }
             return result;
         }

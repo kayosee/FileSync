@@ -51,7 +51,23 @@ public static class ArrayHelper
             span[i] ^= key;
         }
     }
-    public static uint Crc32(this string text)
+    public static bool IsEqualsWith(this byte[] a, byte[] b)
+    {
+        Span<byte> span = a;
+        Span<byte> otherSpan = b;
+
+        if(span.Length != otherSpan.Length) 
+        { 
+            return false;
+        }
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (a[i] != b[i]) 
+                return false;
+        }
+        return true;
+    }
+    public static uint GetCrc32(this string text)
     {
         var buffer = Encoding.UTF8.GetBytes(text, 0, text.Length);
         return Crc32Algorithm.Compute(buffer);
