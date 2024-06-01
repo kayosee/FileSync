@@ -190,7 +190,7 @@ namespace FileSyncServer
         }
         private void DoFileListTotalRequest(FileListTotalRequest message)
         {
-            Log.Information("收到读取文件列表请求");
+            Log.Information("收到读取文件列表信息请求");
 
             var localPath = System.IO.Path.Combine(_folder, message.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             _files = new();
@@ -201,7 +201,7 @@ namespace FileSyncServer
         }
         private void DoFileListDetailRequest(FileListDetailRequest message)
         {
-            Log.Information("收到读取文件列表请求");
+            Log.Information("收到读取文件列表详情请求");
 
             var output = from r in _files.Values
                          select new FileListDetailResponse(message.ClientId, message.RequestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0, r.FullName, false);

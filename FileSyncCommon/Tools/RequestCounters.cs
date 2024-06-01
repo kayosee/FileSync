@@ -17,7 +17,7 @@ namespace FileSyncCommon.Tools
         }
         public void Increase(long id, int value = 1)
         {
-            dict.AddOrUpdate(id, new ExpireCounter(TimeSpan.FromMinutes(30)), (s, t) => t);
+            dict.AddOrUpdate(id, new ExpireCounter(30), (s, t) => t);
             dict[id].Increase(value);
         }
         public void Decrease(long id, int value = 1)

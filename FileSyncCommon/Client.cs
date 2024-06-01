@@ -1,10 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.Intrinsics.Arm;
 using System.Text;
-using System.Text.Json.Serialization;
-using FileSyncCommon.Messages;
 using FileSyncCommon.Messages;
 using FileSyncCommon.Tools;
 

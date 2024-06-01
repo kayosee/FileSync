@@ -43,7 +43,7 @@ namespace FileSyncCommon.Messages
         public byte[] Serialize()
         {
             Debug.Assert(_sequence >= 0);
-            Debug.Assert(_sliceLength >= 0);
+            Debug.Assert(_sliceLength > 0);
             using (var stream = new ByteArrayStream())
             {
                 stream.Write(_totalLength);

@@ -10,28 +10,28 @@ namespace FileSyncCommon.Tools
     public class ExpireCounter
     {
         private volatile int _counter = 0;
-        private TimeSpan _expiration;
+        private int _minutesExpire;
         private DateTime _expire;
-        public ExpireCounter(TimeSpan expiration)
+        public ExpireCounter(int minutesExpire)
         {
-            _expiration = expiration;
-            _expire = DateTime.Now + expiration;
+            _minutesExpire = minutesExpire;
+            _expire = DateTime.Now.AddMinutes(minutesExpire);
         }
         public void Increase(int value = 1)
         {
             _counter += value;
-            _expire += _expiration;
+            _expire.AddMinutes(_minutesExpire);
         }
         public int Decrease(int value = 1)
         {
             _counter -= value;
-            _expire += _expiration;
+            _expire.AddMinutes(_minutesExpire);
             return _counter;
         }
         public void Reset()
         {
             _counter = 0;
-            _expire += _expiration;
+            _expire.AddMinutes(_minutesExpire);
         }
         public bool IsZeroOrExpired
         {

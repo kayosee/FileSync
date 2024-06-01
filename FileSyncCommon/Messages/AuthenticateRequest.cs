@@ -11,7 +11,6 @@ namespace FileSyncCommon.Messages
     public class AuthenticateRequest : Request
     {
         private string _password;
-        private int _passwordLength;
         public string Password { get => _password; set => _password = value; }
         public AuthenticateRequest(ByteArrayStream stream) : base(stream)
         {

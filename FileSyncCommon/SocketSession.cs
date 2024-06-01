@@ -5,7 +5,6 @@ using System.Collections.Concurrent;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
-using FileSyncCommon.Tools;
 using System;
 using System.Diagnostics;
 using Serilog;
@@ -102,12 +101,13 @@ namespace FileSyncCommon
             buffer = new byte[length];
             try
             {
-                if (maxWaitSeconds > 0)
-                    _socket.ReceiveTimeout = (int)TimeSpan.FromSeconds(maxWaitSeconds).TotalMilliseconds;
-                else
-                    _socket.ReceiveTimeout = -1;
+                var total = 0;
+                do
+                {
+                    int ret = _socket.Receive(buffer, total, length - total, SocketFlags.None);
+                    total += ret;
+                } while (total < length);
 
-                _socket.Receive(buffer, length, SocketFlags.None);
                 whole.AddRange(buffer);
                 if (_encrypt)
                     buffer.Xor(_encryptKey);
