@@ -35,6 +35,6 @@ namespace FileSyncCommon.Tools
                     dict.TryRemove(key, out var _);
             }
             return dict.IsEmpty;
-        }
+        }       
     }
 }

@@ -16,8 +16,6 @@ namespace FileSyncCommon
         private string _remoteFolder;
         private int _syncDaysBefore;
         private int _interval;
-        private bool _encrypt;
-        private byte _encryptKey;
         private string _password;
         private bool _authorized;
         private Timer? _timer;
@@ -39,12 +37,13 @@ namespace FileSyncCommon
         public int Interval { get => _interval; set => _interval = value; }
         public string Password
         {
-            get => _password; set
+            get => _password; 
+            set
             {
                 _password = value;
-                _encrypt = !string.IsNullOrEmpty(_password);
+                Encrypt = !string.IsNullOrEmpty(_password);
                 var bytes = System.Text.Encoding.UTF8.GetBytes(_password);
-                _encryptKey = bytes.Aggregate((s, t) => s ^= t);
+                EncryptKey = bytes.Aggregate((s, t) => s ^= t);
             }
         }
         public bool IsConnected
@@ -54,8 +53,8 @@ namespace FileSyncCommon
                 return _socket != null && _socket.Connected;
             }
         }
-        public bool Encrypt { get => _encrypt; set => _encrypt = value; }
-        public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
+        public bool Encrypt { get; private set; }
+        public byte EncryptKey { get; private set; }
         public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
         public bool Running { get => _running; }
         public int SyncDaysBefore { get => _syncDaysBefore; set => _syncDaysBefore = value; }
@@ -236,7 +235,7 @@ namespace FileSyncCommon
         }
         protected void OnConnected()
         {
-            _session = new SocketSession(_socket, _encrypt, _encryptKey);
+            _session = new SocketSession(_socket, Encrypt, EncryptKey);
             _session.OnReceivePackage += OnReceivePackage;
             _session.OnSendPackage += OnSendPackage;
             _session.OnSocketError += OnSocketError;
@@ -253,13 +252,7 @@ namespace FileSyncCommon
             {
                 _host = host;
                 _port = port;
-                _password = password;
-                _encrypt = !string.IsNullOrEmpty(password);
-                if (_encrypt)
-                {
-                    var bytes = Encoding.UTF8.GetBytes(password);
-                    _encryptKey = bytes.Aggregate((s, t) => s ^= t);
-                }
+                Password = password;
 
                 _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
                 _socket.Connect(IPAddress.Parse(host), port);
@@ -291,6 +284,7 @@ namespace FileSyncCommon
             _remoteFolder = remoteFolder;
             _syncDaysBefore = syncDaysBefore;
             _deleteDaysBefore = deleteDaysBefore;
+            _requestCounters = new RequestCounters();
             _interval = interval;
             if (_timer != null)
                 _timer.Dispose();

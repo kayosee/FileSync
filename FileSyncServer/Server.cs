@@ -59,6 +59,7 @@ namespace FileSyncServer
                 }
             });
             _acceptor.Name = "acceptor";
+            _acceptor.IsBackground = true;
             _acceptor.Start();
 
         }

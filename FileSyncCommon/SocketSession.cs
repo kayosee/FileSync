@@ -51,6 +51,7 @@ namespace FileSyncCommon
                     }
                 });
             _producer.Name = "producer-" + socket.Handle;
+            _producer.IsBackground = true;
             _producer.Start();
 
             _consumer = new Thread((s) =>
@@ -64,6 +65,7 @@ namespace FileSyncCommon
                 }
             });
             _consumer.Name = "consumer-" + socket.Handle;
+            _consumer.IsBackground = true;
             _consumer.Start();
         }
         private void DoSocketError(SocketSession socketSession, Exception e)
@@ -108,9 +110,10 @@ namespace FileSyncCommon
                     total += ret;
                 } while (total < length);
 
-                whole.AddRange(buffer);
                 if (_encrypt)
                     buffer.Xor(_encryptKey);
+
+                whole.AddRange(buffer);
 
                 return true;
             }
