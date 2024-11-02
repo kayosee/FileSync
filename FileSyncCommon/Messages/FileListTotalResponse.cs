@@ -24,7 +24,10 @@ namespace FileSyncCommon.Messages
             _fileCount = stream.ReadLong();
             _totalSize = stream.ReadLong();
         }
-        public FileListTotalResponse(int clientId, long requestId, string path, long fileCount, long totalSize, bool latest) : base(MessageType.FileListTotalResponse, clientId, requestId, latest, path)
+        public FileListTotalResponse(int clientId, long requestId, string path, bool latest,Error error) : base(MessageType.FileListTotalResponse, clientId, requestId, latest, path, error)
+        {
+        }
+        public FileListTotalResponse(int clientId, long requestId, string path, long fileCount, long totalSize, bool latest) : base(MessageType.FileListTotalResponse, clientId, requestId, latest, path, Error.None)
         {
             _fileCount = fileCount;
             _totalSize = totalSize;

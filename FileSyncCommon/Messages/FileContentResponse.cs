@@ -73,7 +73,11 @@ public class FileContentResponse : FileResponse
 
         return other.Path == Path && other.Pos == Pos;
     }
-    public FileContentResponse(int clientId, long requestId, FileResponseType responseType, string path,bool latest) : base(MessageType.FileContentResponse, clientId, requestId,latest,path)
+    public FileContentResponse(int clientId, long requestId, FileResponseType responseType, string path, bool latest, Error error) : base(MessageType.FileContentResponse, clientId, requestId, latest, path, error)
+    {
+        _responseType = (byte)responseType;
+    }
+    public FileContentResponse(int clientId, long requestId, FileResponseType responseType, string path, bool latest) : base(MessageType.FileContentResponse, clientId, requestId, latest, path, Error.None)
     {
         _responseType = (byte)responseType;
     }

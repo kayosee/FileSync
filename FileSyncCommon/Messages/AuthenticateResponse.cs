@@ -13,7 +13,11 @@ namespace FileSyncCommon.Messages
         private byte _ok;
 
         public bool OK { get => _ok == 1; set => _ok = (byte)(value ? 1 : 0); }
-        public AuthenticateResponse(int clientId, long requestId,bool ok) : base(MessageType.AuthenticateResponse, clientId, requestId, true)
+        public AuthenticateResponse(int clientId, long requestId, Error error) : base(MessageType.AuthenticateResponse, clientId, requestId, true, error)
+        {
+            _ok = 0;
+        }
+        public AuthenticateResponse(int clientId, long requestId, bool ok) : base(MessageType.AuthenticateResponse, clientId, requestId, true, Error.None)
         {
             _ok = (byte)(ok ? 1 : 0);
         }

@@ -37,7 +37,7 @@ namespace FileSyncCommon
         public int Interval { get => _interval; set => _interval = value; }
         public string Password
         {
-            get => _password; 
+            get => _password;
             set
             {
                 _password = value;
@@ -66,6 +66,14 @@ namespace FileSyncCommon
         {
             if (message != null)
             {
+                if (message is FileResponse)
+                {
+                    var response = (FileResponse)message;
+                    if (response.Error != Error.None)
+                    {
+                        LogError($"请求响应错误：{Enum.GetName(response.Error)}");
+                    }
+                }
                 switch (message.MessageType)
                 {
                     case MessageType.AuthenticateResponse:
@@ -111,6 +119,12 @@ namespace FileSyncCommon
         }
         private void DoFileInfoResponse(FileInfoResponse message)
         {
+            if (message.Error != Error.None)
+            {
+                _requestCounters.Decrease(message.RequestId);
+                return;
+            }
+
             LogInformation($"发起请求文件信息: {message.Path}");
 
             var response = new FileContentRequest(_clientId, message.RequestId, message.LastPos, message.Path);
@@ -121,63 +135,70 @@ namespace FileSyncCommon
             _requestCounters.Decrease(message.RequestId);
             var request = new FileListDetailRequest(_clientId, DateTime.Now.Ticks, _syncDaysBefore, _remoteFolder);
             _session.SendMessage(request);
-            _requestCounters.Increase(request.RequestId,(int)message.FileCount);
+            _requestCounters.Increase(request.RequestId, (int)message.FileCount);
         }
         private void DoFileContentResponse(FileContentResponse fileResponse)
         {
-            var path = System.IO.Path.Combine(_localFolder, fileResponse.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
-            switch (fileResponse.ResponseType)
+            try
             {
-                case FileResponseType.Empty:
-                    {
-                        _requestCounters.Decrease(fileResponse.RequestId);
-                        FileInfo fi = new FileInfo(path);
-                        if (!fi.Directory.Exists)
-                            fi.Directory.Create();
+                var path = System.IO.Path.Combine(_localFolder, fileResponse.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
+                switch (fileResponse.ResponseType)
+                {
+                    case FileResponseType.Empty:
+                        {
+                            _requestCounters.Decrease(fileResponse.RequestId);
+                            FileInfo fi = new FileInfo(path);
+                            if (!fi.Directory.Exists)
+                                fi.Directory.Create();
 
-                        File.Create(path).Close();
-                        fi.LastWriteTime = DateTime.FromBinary(fileResponse.LastWriteTime);
-                        break;
-                    }
-                case FileResponseType.FileDeleted:
-                    {
-                        _requestCounters.Decrease(fileResponse.RequestId);
-                        if (System.IO.Path.Exists(path))
-                            File.Delete(path);
-                        break;
-                    }
-                case FileResponseType.Content:
-                    {
-                        try
-                        {
-                            if (fileResponse.EndOfFile) //文件已经传输完成
-                            {
-                                _requestCounters.Decrease(fileResponse.RequestId);
-                                FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, null);
-                                FileOperator.SetupFile(path, fileResponse.LastWriteTime);
-                                LogInformation($"{fileResponse.Path}已经传输完成。");
-                            }
-                            else //写入位置信息
-                            {
-                                FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, fileResponse.Pos + fileResponse.FileDataLength);
-                                _session.SendMessage(new FileContentRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
-                            }
+                            File.Create(path).Close();
+                            fi.LastWriteTime = DateTime.FromBinary(fileResponse.LastWriteTime);
+                            break;
                         }
-                        catch (Exception e)
+                    case FileResponseType.FileDeleted:
                         {
-                            LogError(e.Message, e);
-                            _session.SendMessage(new FileContentRequest(_clientId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path));
+                            _requestCounters.Decrease(fileResponse.RequestId);
+                            if (System.IO.Path.Exists(path))
+                                File.Delete(path);
+                            break;
                         }
+                    case FileResponseType.Content:
+                        {
+                            try
+                            {
+                                if (fileResponse.EndOfFile) //文件已经传输完成
+                                {
+                                    _requestCounters.Decrease(fileResponse.RequestId);
+                                    FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, null);
+                                    FileOperator.SetupFile(path, fileResponse.LastWriteTime);
+                                    LogInformation($"{fileResponse.Path}已经传输完成。");
+                                }
+                                else //写入位置信息
+                                {
+                                    FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, fileResponse.Pos + fileResponse.FileDataLength);
+                                    _session.SendMessage(new FileContentRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                LogError(e.Message, e);
+                                _session.SendMessage(new FileContentRequest(_clientId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path));
+                            }
+                            break;
+                        }
+                    case FileResponseType.FileReadError:
+                        {
+                            _requestCounters.Decrease(fileResponse.RequestId);
+                            LogError($"远程文件读取失败:{fileResponse.Path}", null);
+                            break;
+                        }
+                    default:
                         break;
-                    }
-                case FileResponseType.FileReadError:
-                    {
-                        _requestCounters.Decrease(fileResponse.RequestId);
-                        LogError($"远程文件读取失败:{fileResponse.Path}", null);
-                        break;
-                    }
-                default:
-                    break;
+                }
+            }
+            catch (Exception e)
+            {
+                LogError(e.Message, e);
             }
         }
         private void DoFileListDetailResponse(FileListDetailResponse fileInformation)

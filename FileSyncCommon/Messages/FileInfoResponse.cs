@@ -37,8 +37,15 @@ namespace FileSyncCommon.Messages
             _totalCount = stream.ReadLong();
             _totalSize = stream.ReadLong();
         }
+        public FileInfoResponse(int clientId, long requestId, string path, Error error) : base(MessageType.FileInfoResponse, clientId, requestId, true, path, error)
+        {
+            _lastPos = 0;
+            _checksum = 0;
+            _totalCount = 0;
+            _totalSize = 0;
+        }
 
-        public FileInfoResponse(int clientId, long requestId, long lastPos, uint checksum, long totalCount, long totalSize, string path) : base(MessageType.FileInfoResponse, clientId, requestId, true, path)
+        public FileInfoResponse(int clientId, long requestId, string path, long lastPos, uint checksum, long totalCount, long totalSize) : base(MessageType.FileInfoResponse, clientId, requestId, true, path, Error.None)
         {
             _lastPos = lastPos;
             _checksum = checksum;

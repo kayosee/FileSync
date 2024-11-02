@@ -25,7 +25,11 @@ namespace FileSyncCommon.Messages
         {
             _folderList = stream.ReadUTF8String();
         }
-        public FolderListResponse(int clientId, long requestId, string path, string[] folderList) : base(MessageType.FolderListResponse, clientId, requestId, true, path)
+        public FolderListResponse(int clientId, long requestId, string path, Error error) : base(MessageType.FolderListResponse, clientId, requestId, true, path, error)
+        {
+            _folderList = string.Empty;
+        }
+        public FolderListResponse(int clientId, long requestId, string path, string[] folderList) : base(MessageType.FolderListResponse, clientId, requestId, true, path, Error.None)
         {
             if (folderList != null && folderList.Length > 0)
                 _folderList = string.Join(";", folderList);

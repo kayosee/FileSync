@@ -35,7 +35,10 @@ public class FileListDetailResponse : FileResponse
     /// 文件内容校验和
     /// </summary>
     public uint Checksum { get => _checksum; set => _checksum = value; }
-    public FileListDetailResponse(int clientId, long requestId, long createTime, long lastAccessTime, long lastWriteTime, long fileLength, uint checksum, string path, bool latest) : base(MessageType.FileListDetailResponse, clientId, requestId, latest, path)
+    public FileListDetailResponse(int clientId, long requestId, string path, bool latest, Error error) : base(MessageType.FileListDetailResponse, clientId, requestId, latest, path, error)
+    {
+    }
+    public FileListDetailResponse(int clientId, long requestId, long createTime, long lastAccessTime, long lastWriteTime, long fileLength, uint checksum, string path, bool latest) : base(MessageType.FileListDetailResponse, clientId, requestId, latest, path, Error.None)
     {
         _createTime = createTime;
         _lastAccessTime = lastAccessTime;

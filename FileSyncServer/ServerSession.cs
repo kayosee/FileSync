@@ -102,7 +102,7 @@ namespace FileSyncServer
             }
             else
             {
-                SocketSession.SendMessage(new AuthenticateResponse(_id, 0, false));
+                SocketSession.SendMessage(new AuthenticateResponse(_id, message.RequestId, Error.AuthenticateError));
                 IsAuthenticated = false;
                 if (OnAuthenticate != null)
                     OnAuthenticate(false, this);
@@ -111,32 +111,42 @@ namespace FileSyncServer
         private void DoFileInfoRequest(FileInfoRequest message)
         {
             Log.Information($"收到读取文件信息请求:{message.Path}");
-
+            FileInfoResponse response = null;
             var localPath = System.IO.Path.Combine(_folder, message.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
             var fileInfo = new FileInfo(localPath);
-
-            var totalCount = (long)((fileInfo.Length - message.LastPos) / FileContentResponse.MaxDataSize);
-            var totalSize = fileInfo.Length - message.LastPos;
-            var lastPos = message.LastPos;
-            uint checksum = 0;
-            if (message.Checksum != 0 && message.LastPos > 0)
+            if (!fileInfo.Exists)
             {
-                try
+                response = new FileInfoResponse(message.ClientId, message.RequestId, message.Path, Error.FileNotExists);
+                Log.Error($"文件{fileInfo.FullName}不存在。");
+            }
+            else
+            {
+                var totalCount = (long)((fileInfo.Length - message.LastPos) / FileContentResponse.MaxDataSize);
+                var totalSize = fileInfo.Length - message.LastPos;
+                var lastPos = message.LastPos;
+                uint checksum = 0;
+                if (message.Checksum != 0 && message.LastPos > 0)
                 {
-                    checksum = FileOperator.GetCrc32(localPath, message.LastPos);
-                    if (checksum != message.Checksum)//校验不一致，重新传输
+                    try
                     {
-                        totalCount = (long)((fileInfo.Length) / FileContentResponse.MaxDataSize);
-                        totalSize = fileInfo.Length;
-                        lastPos = 0;
+                        checksum = FileOperator.GetCrc32(localPath, message.LastPos);
+                        if (checksum != message.Checksum)//校验不一致，重新传输
+                        {
+                            totalCount = (long)((fileInfo.Length) / FileContentResponse.MaxDataSize);
+                            totalSize = fileInfo.Length;
+                            lastPos = 0;
+                        }
+                        response = new FileInfoResponse(message.ClientId, message.RequestId, message.Path, lastPos, checksum, totalCount, totalSize);
+                    }
+                    catch (Exception ex)
+                    {
+                        response = new FileInfoResponse(message.ClientId, message.RequestId, message.Path, Error.FileCheckError);
+                        Log.Error("文件检验失败:" + ex.Message);
                     }
                 }
-                catch (Exception ex)
-                {
-                    Log.Error("文件检验失败:" + ex.Message);
-                }
+                else
+                    response = new FileInfoResponse(message.ClientId, message.RequestId, message.Path, lastPos, checksum, totalCount, totalSize);
             }
-            var response = new FileInfoResponse(message.ClientId, message.RequestId, lastPos, checksum, totalCount, totalSize, message.Path);
             _session.SendMessage(response);
         }
         private void DoFileContentRequest(FileContentRequest message)
