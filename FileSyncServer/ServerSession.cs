@@ -38,10 +38,11 @@ namespace FileSyncServer
             /*清除超时连接*/
             new Thread(() =>
             {
-                Thread.Sleep(TimeSpan.FromSeconds(150));
+                Thread.Sleep(TimeSpan.FromSeconds(ConfigReader.GetInt("timeout",15)));
                 if (!IsAuthenticated && _session.Socket.Connected)
                 {
                     Log.Information("验证超时关闭");
+                    FailCounter.AddCount(_session.Socket);
                     _session.Disconnect();
                 }
             }).Start();

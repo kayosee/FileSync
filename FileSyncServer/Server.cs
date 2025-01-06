@@ -52,6 +52,13 @@ namespace FileSyncServer
                     var client = _socket.Accept();
                     Log.Information("新连接加入");
 
+                    if (FailCounter.GetCount(client) > ConfigReader.GetInt("maxFailCount",3))
+                    {
+                        Log.Warning($"黑名单IP{client.RemoteEndPoint},禁止连接");
+                        client.Close();
+                        continue;
+                    }
+
                     var clientId = _sessions.Count;
                     var session = new ServerSession(clientId, _folder,_password, client, _encrypt, _encryptKey);
                     session.OnAuthenticate += Session_OnAuthenticate;
@@ -74,11 +81,13 @@ namespace FileSyncServer
         {
             if (success)
             {
+                FailCounter.ResetCount(session.SocketSession.Socket);
                 _sessions.TryAdd(session.Id, session);
                 session.SocketSession.Socket.IOControl(IOControlCode.KeepAliveValues, KeepAlive(1, 3000, 2000), null);//设置Keep-Alive参数
             }
             else
             {
+                FailCounter.AddCount(session.SocketSession.Socket);
                 session.SocketSession.Disconnect();
             }
         }
