@@ -1,6 +1,6 @@
 ﻿using System.Globalization;
 using System.Windows.Data;
-namespace UICommon
+namespace FileSyncClientUICommon
 {
     public class InvertBoolValueConverter : IValueConverter
     {

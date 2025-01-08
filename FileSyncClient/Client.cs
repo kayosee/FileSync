@@ -2,10 +2,11 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using FileSyncCommon;
 using FileSyncCommon.Messages;
 using FileSyncCommon.Tools;
 
-namespace FileSyncCommon
+namespace FileSyncClient
 {
     public class Client : Logging, IDisposable
     {

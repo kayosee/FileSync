@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:system="clr-namespace:System;assembly=mscorlib"
         xmlns:dxlc="http://schemas.devexpress.com/winfx/2008/xaml/layoutcontrol"
-        xmlns:uicommon="clr-namespace:UICommon;assembly=UICommon" 
+        xmlns:uicommon="clr-namespace:FileSyncClientUICommon;assembly=FileSyncClientUICommon" 
         xmlns:dx="http://schemas.devexpress.com/winfx/2008/xaml/core"
         xmlns:dxmvvm="http://schemas.devexpress.com/winfx/2008/xaml/mvvm"
         xmlns:dxg="http://schemas.devexpress.com/winfx/2008/xaml/grid"

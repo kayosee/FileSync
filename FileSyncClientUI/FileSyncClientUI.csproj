@@ -23,8 +23,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\FileSyncClient\FileSyncClient.csproj" />
     <ProjectReference Include="..\FileSyncCommon\FileSyncCommon.csproj" />
-    <ProjectReference Include="..\UICommon\UICommon.csproj" />
+    <ProjectReference Include="..\UICommon\FileSyncClientUICommon.csproj" />
   </ItemGroup>
 
   <ItemGroup>

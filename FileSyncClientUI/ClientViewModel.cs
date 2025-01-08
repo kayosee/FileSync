@@ -1,4 +1,5 @@
 ﻿using DevExpress.Xpf.Core.Native;
+using FileSyncClient;
 using FileSyncCommon;
 using FileSyncCommon.Messages;
 using Newtonsoft.Json;
@@ -12,7 +13,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
-using UICommon;
+using FileSyncClientUICommon;
 
 namespace FileSyncClientUI
 {

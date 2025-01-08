@@ -1,7 +1,8 @@
-﻿using Serilog;
+﻿using FileSyncServer;
+using Serilog;
 using System.Configuration;
 
-namespace FileSyncServer
+namespace FileSyncServerCLI
 {
     internal class Program
     {
