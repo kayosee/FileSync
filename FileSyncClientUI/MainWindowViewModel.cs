@@ -8,7 +8,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
-using UICommon;
+using FileSyncClientUICommon;
 
 namespace FileSyncClientUI
 {

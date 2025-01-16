@@ -1,4 +1,5 @@
 ﻿using FileSyncClient;
+using FileSyncCommon.Tools;
 using Serilog;
 using System.Configuration;
 
@@ -8,12 +9,12 @@ namespace FileSyncClientCLI
     {
         static void Main(string[] args)
         {
-            var ip = ConfigurationManager.AppSettings["ip"];
-            var port = ConfigurationManager.AppSettings["port"];
-            var localFolder = ConfigurationManager.AppSettings["localFolder"];
-            var remoteFolder = ConfigurationManager.AppSettings["remoteFolder"];
-            var interval = int.Parse(ConfigurationManager.AppSettings["interval"]);
-            var password = (ConfigurationManager.AppSettings["password"]);
+            var ip = ConfigReader.GetString("ip","");
+            var port = ConfigReader.GetString("port", "");
+            var localFolder = ConfigReader.GetString("localFolder", "");
+            var remoteFolder = ConfigReader.GetString("remoteFolder", "");
+            var interval = ConfigReader.GetInt("interval", 5);
+            var password = ConfigReader.GetString("password", "");
             Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("run.log", rollingInterval: RollingInterval.Day).CreateLogger();
 
             try

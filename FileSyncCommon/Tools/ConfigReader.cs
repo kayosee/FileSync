@@ -17,6 +17,7 @@ namespace FileSyncCommon.Tools
                 try
                 {
                     var result = int.Parse(value);
+                    return result;
                 }
                 catch (Exception ex)
                 {
@@ -33,6 +34,7 @@ namespace FileSyncCommon.Tools
                 try
                 {
                     var result = DateTime.Parse(value);
+                    return result;
                 }
                 catch (Exception ex)
                 {
@@ -46,7 +48,7 @@ namespace FileSyncCommon.Tools
             var value = ConfigurationManager.AppSettings.Get(key);
             if (!string.IsNullOrEmpty(value))
             {
-                return defaultValue;
+                return value;
             }
             return defaultValue;
         }
