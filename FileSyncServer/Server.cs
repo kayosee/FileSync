@@ -21,7 +21,7 @@ namespace FileSyncServer
         private int _port;
         private string _folder;
         private bool _encrypt;
-        private byte _encryptKey;
+        private byte[] _encryptKey;
         private string _password;
         private const int AuthenticateTimeout = 5;
         public Server(int port, string folder, string password)
@@ -32,8 +32,7 @@ namespace FileSyncServer
             _encrypt = !string.IsNullOrEmpty(password);
             if(_encrypt)
             {
-                byte[] bytes = Encoding.UTF8.GetBytes(password);
-                _encryptKey = bytes.Aggregate((s, t) => s ^= t);
+                _encryptKey = Encoding.UTF8.GetBytes(password);
             }
                 
         }

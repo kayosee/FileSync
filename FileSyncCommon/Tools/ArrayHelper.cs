@@ -1,10 +1,5 @@
 ﻿using Force.Crc32;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace FileSyncCommon.Tools;
 
@@ -38,7 +33,7 @@ public static class ArrayHelper
             source.SetValue(func.Invoke((TSource)source.GetValue(i)), i);
         }
     }
-    public static void Xor(this byte[] source, byte key)
+    public static void Xor(this byte[] source, byte[] key, CycleIndex start)
     {
         if (source == null)
         {
@@ -48,7 +43,7 @@ public static class ArrayHelper
         Span<byte> span = source;
         for (int i = 0; i < span.Length; i++)
         {
-            span[i] ^= key;
+            span[i] ^= key[start.Increment()];
         }
     }
     public static bool IsEqualsWith(this byte[] a, byte[] b)
@@ -56,13 +51,13 @@ public static class ArrayHelper
         Span<byte> span = a;
         Span<byte> otherSpan = b;
 
-        if(span.Length != otherSpan.Length) 
-        { 
+        if (span.Length != otherSpan.Length)
+        {
             return false;
         }
         for (int i = 0; i < a.Length; i++)
         {
-            if (a[i] != b[i]) 
+            if (a[i] != b[i])
                 return false;
         }
         return true;

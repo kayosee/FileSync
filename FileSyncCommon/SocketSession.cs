@@ -1,12 +1,7 @@
 ﻿using FileSyncCommon.Messages;
 using FileSyncCommon.Tools;
 using Force.Crc32;
-using System.Collections.Concurrent;
 using System.Net.Sockets;
-using System.Reflection;
-using System.Text;
-using System;
-using System.Diagnostics;
 using Serilog;
 namespace FileSyncCommon
 {
@@ -15,13 +10,15 @@ namespace FileSyncCommon
         private int QueueSize = Environment.ProcessorCount;
         private volatile bool _disposed;
         private bool _encrypt;
-        private byte _encryptKey;
+        private byte[] _encryptKey;
+        private CycleIndex _readKeyStart;
+        private CycleIndex _writeKeyStart;
         private Thread _producer;
         private Thread _consumer;
         private Socket _socket;
         private FixedLengthQueue<Messages.Message> _packetQueue;
         public bool Encrypt { get => _encrypt; set => _encrypt = value; }
-        public byte EncryptKey { get => _encryptKey; set => _encryptKey = value; }
+        public byte[] EncryptKey { get => _encryptKey; set => _encryptKey = value; }
         public Socket Socket { get => _socket; set => _socket = value; }
         public delegate void ReceivePackageHandler(Message packet);
         public delegate void SendPackageHandler(Message packet);
@@ -31,13 +28,14 @@ namespace FileSyncCommon
         public event SendPackageHandler? OnSendPackage;
         public event SocketErrorHandler? OnSocketError;
         public event DataErrorHandler? OnDataError;
-        public SocketSession(Socket socket, bool encrypt, byte encryptKey)
+        public SocketSession(Socket socket, bool encrypt, byte[] encryptKey)
         {
             _socket = socket;
             _socket.ReceiveBufferSize = (int)Math.Pow(1024, 3);//接收缓存区太小，会产生ZEROWINDOW，导致后面的Send阻塞
             _encrypt = encrypt;
             _encryptKey = encryptKey;
-
+            _readKeyStart = new CycleIndex((uint)encryptKey.Length);
+            _writeKeyStart = new CycleIndex((uint)encryptKey.Length);
             _packetQueue = new FixedLengthQueue<Message>(Environment.ProcessorCount);
             _producer = new Thread((s) =>
                 {
@@ -93,7 +91,7 @@ namespace FileSyncCommon
             foreach (var packet in message.ToPackets())
             {
                 Write(packet.Serialize());
-            };
+            }
 
             if (OnSendPackage != null)
                 OnSendPackage(message);
@@ -111,7 +109,7 @@ namespace FileSyncCommon
                 } while (total < length);
 
                 if (_encrypt)
-                    buffer.Xor(_encryptKey);
+                    buffer.Xor(_encryptKey, _readKeyStart);
 
                 whole.AddRange(buffer);
 
@@ -180,7 +178,8 @@ namespace FileSyncCommon
                 Array.Resize(ref buffer, buffer.Length + sizeof(uint));
                 Crc32Algorithm.ComputeAndWriteToEnd(buffer);
                 if (_encrypt)
-                    buffer.Xor(_encryptKey);
+                    buffer.Xor(_encryptKey, _writeKeyStart);
+
                 _socket.Send(buffer);
                 return buffer.Length;
             }

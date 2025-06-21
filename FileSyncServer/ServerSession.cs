@@ -27,7 +27,7 @@ namespace FileSyncServer
         public bool IsAuthenticated { get; set; } = false;
         public SocketSession SocketSession { get { return _session; } }
         public int Id { get => _id; set => _id = value; }
-        public ServerSession(int id, string folder, string password, Socket socket, bool encrypt, byte encryptKey)
+        public ServerSession(int id, string folder, string password, Socket socket, bool encrypt, byte[] encryptKey)
         {
             _id = id;
             _folder = folder;

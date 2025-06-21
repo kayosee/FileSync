@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -24,6 +25,11 @@ namespace FileSyncClient
         private Socket _socket;
         private volatile bool _running;
         private int _deleteDaysBefore;
+        private String _startTime;
+        private String _endTime;
+
+        private String _startDate;
+        private String _endDate;
         private RequestCounters _requestCounters = new RequestCounters();
         public delegate void FolderListResponseHandler(FolderListResponse response);
         public delegate void DisconnectedHandler();
@@ -31,11 +37,16 @@ namespace FileSyncClient
         public event FolderListResponseHandler? OnFolderListResponse;
         public event DisconnectedHandler? OnDisconnected;
         public event LoginHandler? OnLogin;
+
         public string Host { get => _host; set => _host = value; }
         public int Port { get => _port; set => _port = value; }
         public int ClientId { get => _clientId; set => _clientId = value; }
         public string LocalFolder { get => _localFolder; set => _localFolder = value; }
         public int Interval { get => _interval; set => _interval = value; }
+        public String StartTime { get => _startTime; set => _startTime = value; }
+        public String EndTime { get => _endTime; set => _endTime = value; }
+        public String StartDate { get => _startDate; set => _startDate = value; }
+        public String EndDate { get => _endDate; set => _endDate = value; }
         public string Password
         {
             get => _password;
@@ -43,8 +54,8 @@ namespace FileSyncClient
             {
                 _password = value;
                 Encrypt = !string.IsNullOrEmpty(_password);
-                var bytes = System.Text.Encoding.UTF8.GetBytes(_password);
-                EncryptKey = bytes.Aggregate((s, t) => s ^= t);
+                if (Encrypt)
+                    EncryptKey = Encoding.UTF8.GetBytes(_password);
             }
         }
         public bool IsConnected
@@ -55,7 +66,7 @@ namespace FileSyncClient
             }
         }
         public bool Encrypt { get; private set; }
-        public byte EncryptKey { get; private set; }
+        public byte[] EncryptKey { get; private set; }
         public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
         public bool Running { get => _running; }
         public int SyncDaysBefore { get => _syncDaysBefore; set => _syncDaysBefore = value; }
@@ -313,6 +324,43 @@ namespace FileSyncClient
 
             _timer = new Timer((e) =>
             {
+                var now = DateTime.Now;
+                if (!string.IsNullOrEmpty(_startDate) && DateTime.TryParse(_startDate, out var startDate))
+                {
+                    if (now < startDate)
+                        return;
+
+                    if (!string.IsNullOrEmpty(_startTime) && DateTime.TryParse(_startTime, out var startTime1))
+                    {
+                        if (now < startDate.Add(startTime1.TimeOfDay))
+                            return;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(_endDate) && DateTime.TryParse(_endDate, out var endDate))
+                {
+                    if (now > endDate)
+                        return;
+
+                    if (!string.IsNullOrEmpty(_endTime) && DateTime.TryParse(_endTime, out var endTime1))
+                    {
+                        if (now > endDate.Add(endTime1.TimeOfDay))
+                            return;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(_startTime) && DateTime.TryParse(_startTime, out var startTime) && now.TimeOfDay < startTime.TimeOfDay)
+                {
+                    LogInformation($"当前时间{now}小于开始时间{_startTime}，跳过本次同步");
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(_endTime) && DateTime.TryParse(_endTime, out var endTime) && now.TimeOfDay > endTime.TimeOfDay)
+                {
+                    LogInformation($"当前时间{now}大于结束时间{_endTime}，跳过本次同步");
+                    return;
+                }
+
                 if (!_running)
                     return;
 

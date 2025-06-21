@@ -357,5 +357,53 @@ namespace FileSyncClientUI
                 OnPropertyChanged(nameof(DeleteDaysBefore));
             }
         }
+        public new String StartDate
+        {
+            get
+            {
+                return base.StartDate;
+            }
+            set
+            {
+                base.StartDate = value;
+                OnPropertyChanged(nameof(StartDate));
+            }
+        }
+        public new String EndDate
+        {
+            get
+            {
+                return base.EndDate;
+            }
+            set
+            {
+                base.EndDate = value;
+                OnPropertyChanged(nameof(EndDate));
+            }
+        }
+        public new String StartTime
+        {
+            get
+            {
+                return base.StartTime;
+            }
+            set
+            {
+                base.StartTime = value;
+                OnPropertyChanged(nameof(StartTime));
+            }
+        }
+        public new String EndTime
+        {
+            get
+            {
+                return base.EndTime;
+            }
+            set
+            {
+                base.EndTime = value;
+                OnPropertyChanged(nameof(EndTime));
+            }
+        }
     }
 }

@@ -50,15 +50,27 @@
                                     <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Interval,Mode=TwoWay}" MinValue="1"/>
                                 </dxlc:LayoutItem>
                                 <dxlc:LayoutGroup>
-                                    <dxlc:DataLayoutItem Label="只同步N天前">
-                                        <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=SyncDaysBefore,Mode=TwoWay}" MinValue="0"/>
-                                    </dxlc:DataLayoutItem>
+                                    <dxlc:LayoutItem Label="开始日期">
+                                        <dxe:TextEdit EditValue="{Binding Path=StartDate,Mode=TwoWay}" MaskType="DateOnly" Mask="d" MaskUseAsDisplayFormat="True" AllowNullInput="True"/>
+                                    </dxlc:LayoutItem>
+                                    <dxlc:LayoutItem Label="开始时间">
+                                        <dxe:TextEdit EditValue="{Binding Path=StartTime,Mode=TwoWay}" MaskType="TimeOnly" Mask="t" MaskUseAsDisplayFormat="True" AllowNullInput="True"/>
+                                    </dxlc:LayoutItem>
                                 </dxlc:LayoutGroup>
                                 <dxlc:LayoutGroup>
-                                    <dxlc:DataLayoutItem Label="删除N天前">
-                                        <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=DeleteDaysBefore,Mode=TwoWay}" MinValue="0"/>
-                                    </dxlc:DataLayoutItem>
+                                    <dxlc:LayoutItem Label="停止日期">
+                                        <dxe:TextEdit EditValue="{Binding Path=EndDate,Mode=TwoWay}" MaskType="DateOnly" Mask="d" MaskUseAsDisplayFormat="True" AllowNullInput="True"/>
+                                    </dxlc:LayoutItem>
+                                    <dxlc:LayoutItem Label="停止时间">
+                                        <dxe:TextEdit EditValue="{Binding Path=EndTime,Mode=TwoWay}" MaskType="TimeOnly" Mask="t" MaskUseAsDisplayFormat="True" AllowNullInput="True"/>
+                                    </dxlc:LayoutItem>
                                 </dxlc:LayoutGroup>
+                                <dxlc:DataLayoutItem Label="只同步N天前">
+                                    <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=SyncDaysBefore,Mode=TwoWay}" MinValue="0"/>
+                                </dxlc:DataLayoutItem>
+                                <dxlc:DataLayoutItem Label="删除N天前">
+                                    <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=DeleteDaysBefore,Mode=TwoWay}" MinValue="0"/>
+                                </dxlc:DataLayoutItem>
                             </dxlc:LayoutGroup>
                             <dxlc:LayoutGroup>
                                 <dxlc:LayoutGroup>
