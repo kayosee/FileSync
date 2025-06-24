@@ -7,7 +7,7 @@ namespace FileSyncCommon
 {
     public sealed class SocketSession
     {
-        private int QueueSize = Environment.ProcessorCount;
+        private readonly int QueueSize = Environment.ProcessorCount;
         private volatile bool _disposed;
         private bool _encrypt;
         private byte[] _encryptKey;

@@ -325,39 +325,49 @@ namespace FileSyncClient
             _timer = new Timer((e) =>
             {
                 var now = DateTime.Now;
+                var start = now.Date;
+                var end = now.Date;
+                var timeSet = false;
+
                 if (!string.IsNullOrEmpty(_startDate) && DateTime.TryParse(_startDate, out var startDate))
                 {
-                    if (now < startDate)
-                        return;
-
-                    if (!string.IsNullOrEmpty(_startTime) && DateTime.TryParse(_startTime, out var startTime1))
-                    {
-                        if (now < startDate.Add(startTime1.TimeOfDay))
-                            return;
-                    }
+                    start = startDate.Date;
+                    timeSet = true;
                 }
-
                 if (!string.IsNullOrEmpty(_endDate) && DateTime.TryParse(_endDate, out var endDate))
                 {
-                    if (now > endDate)
-                        return;
-
-                    if (!string.IsNullOrEmpty(_endTime) && DateTime.TryParse(_endTime, out var endTime1))
-                    {
-                        if (now > endDate.Add(endTime1.TimeOfDay))
-                            return;
-                    }
+                    end = endDate.Date;
+                    timeSet = true;
                 }
 
-                if (!string.IsNullOrEmpty(_startTime) && DateTime.TryParse(_startTime, out var startTime) && now.TimeOfDay < startTime.TimeOfDay)
+                if (start > end)
                 {
-                    LogInformation($"当前时间{now}小于开始时间{_startTime}，跳过本次同步");
+                    LogError($"开始日期{_startDate}大于结束日期{_endDate}，请检查配置");
                     return;
                 }
-
-                if (!string.IsNullOrEmpty(_endTime) && DateTime.TryParse(_endTime, out var endTime) && now.TimeOfDay > endTime.TimeOfDay)
+                
+                if (!string.IsNullOrEmpty(_startTime) && DateTime.TryParse(_startTime, out var startTime))
                 {
-                    LogInformation($"当前时间{now}大于结束时间{_endTime}，跳过本次同步");
+                    start = start.Add(startTime.TimeOfDay);
+                    timeSet = true;
+                }
+
+                if (!string.IsNullOrEmpty(_endTime) && DateTime.TryParse(_endTime, out var endTime))
+                {
+                    end = end.Add(endTime.TimeOfDay);
+                    timeSet = true;
+                }
+
+                if (start.TimeOfDay > end.TimeOfDay)
+                {
+                    end = end.AddDays(1); //如果开始时间大于结束时间，说明跨天了
+                }
+
+                LogInformation($"同步时间范围: {start} - {end}");
+
+                if (timeSet && (now < start || now > end))
+                {
+                    LogInformation($"当前时间{now}不在同步时间范围内({start} - {end})，跳过本次同步");
                     return;
                 }
 

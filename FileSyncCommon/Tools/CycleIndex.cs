@@ -13,7 +13,7 @@
 
         public int Value => Interlocked.CompareExchange(ref _value, 0, 0);
 
-        public int Increment()
+        public int GetAndNext()
         {
             int original;
             int nextValue;
