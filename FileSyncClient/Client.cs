@@ -30,7 +30,7 @@ namespace FileSyncClient
 
         private String _startDate;
         private String _endDate;
-        private RequestCounters _requestCounters = new RequestCounters();
+        private DeferredLock _requests = new DeferredLock();
         public delegate void FolderListResponseHandler(FolderListResponse response);
         public delegate void DisconnectedHandler();
         public delegate void LoginHandler();
@@ -71,6 +71,7 @@ namespace FileSyncClient
         public bool Running { get => _running; }
         public int SyncDaysBefore { get => _syncDaysBefore; set => _syncDaysBefore = value; }
         public int DeleteDaysBefore { get => _deleteDaysBefore; set => _deleteDaysBefore = value; }
+
         private void OnSendPackage(Message message)
         {
         }
@@ -133,7 +134,6 @@ namespace FileSyncClient
         {
             if (message.Error != Error.None)
             {
-                _requestCounters.Decrease(message.RequestId);
                 return;
             }
 
@@ -144,10 +144,8 @@ namespace FileSyncClient
         }
         private void DoFileListTotalResponse(FileListTotalResponse message)
         {
-            _requestCounters.Decrease(message.RequestId);
             var request = new FileListDetailRequest(_clientId, DateTime.Now.Ticks, _syncDaysBefore, _remoteFolder);
             _session.SendMessage(request);
-            _requestCounters.Increase(request.RequestId, (int)message.FileCount);
         }
         private void DoFileContentResponse(FileContentResponse fileResponse)
         {
@@ -158,7 +156,6 @@ namespace FileSyncClient
                 {
                     case FileResponseType.Empty:
                         {
-                            _requestCounters.Decrease(fileResponse.RequestId);
                             FileInfo fi = new FileInfo(path);
                             if (!fi.Directory.Exists)
                                 fi.Directory.Create();
@@ -169,7 +166,6 @@ namespace FileSyncClient
                         }
                     case FileResponseType.FileDeleted:
                         {
-                            _requestCounters.Decrease(fileResponse.RequestId);
                             if (System.IO.Path.Exists(path))
                                 File.Delete(path);
                             break;
@@ -180,10 +176,10 @@ namespace FileSyncClient
                             {
                                 if (fileResponse.EndOfFile) //文件已经传输完成
                                 {
-                                    _requestCounters.Decrease(fileResponse.RequestId);
                                     FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, null);
                                     FileOperator.SetupFile(path, fileResponse.LastWriteTime);
                                     LogInformation($"{fileResponse.Path}已经传输完成。");
+                                    _requests.Release();
                                 }
                                 else //写入位置信息
                                 {
@@ -200,7 +196,6 @@ namespace FileSyncClient
                         }
                     case FileResponseType.FileReadError:
                         {
-                            _requestCounters.Decrease(fileResponse.RequestId);
                             LogError($"远程文件读取失败:{fileResponse.Path}", null);
                             break;
                         }
@@ -228,19 +223,29 @@ namespace FileSyncClient
                         var pos = FileOperator.GetLastPosition(file + ".sync");
                         request.Checksum = FileOperator.GetCrc32(file + ".sync", pos);
                         request.LastPos = pos;
-                        _session.SendMessage(request);
-                        LogInformation($"正在检验续传文件:{fileInformation.Path}");
+                        _requests.TryAcquire(() =>
+                        {
+                            _session.SendMessage(request);
+                            LogInformation($"正在检验续传文件:{fileInformation.Path}");
+                        });
+
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        _session.SendMessage(request);
-                        LogInformation($"文件校验失败:{fileInformation.Path}，重新下载。");
+                        _requests.TryAcquire(() =>
+                        {
+                            _session.SendMessage(request);
+                            LogInformation($"文件校验失败:{fileInformation.Path}，重新下载。");
+                        });
                     }
                 }
                 else
                 {
-                    _session.SendMessage(request);
-                    LogInformation($"文件不存在:{fileInformation.Path}，发起下载。");
+                    _requests.TryAcquire(() =>
+                    {
+                        _session.SendMessage(request);
+                        LogInformation($"文件不存在:{fileInformation.Path}，发起下载。");
+                    });
                 }
             }
             else
@@ -248,12 +253,14 @@ namespace FileSyncClient
                 if (localFileInfo.Length == fileInformation.FileLength && localFileInfo.LastWriteTime.Ticks == fileInformation.LastWriteTime)//请求CHECKSUM，看看是不是一样
                 {
                     LogInformation($"{fileInformation.Path}文件一致，无须更新");
-                    _requestCounters.Decrease(fileInformation.RequestId);
                 }
                 else
                 {
-                    _session.SendMessage(request);
-                    LogInformation($"{fileInformation.Path}文件不一致，需要更新");
+                    _requests.TryAcquire(() =>
+                    {
+                        _session.SendMessage(request);
+                        LogInformation($"{fileInformation.Path}文件不一致，需要更新");
+                    });
                 }
             }
         }
@@ -317,7 +324,6 @@ namespace FileSyncClient
             _remoteFolder = remoteFolder;
             _syncDaysBefore = syncDaysBefore;
             _deleteDaysBefore = deleteDaysBefore;
-            _requestCounters = new RequestCounters();
             _interval = interval;
             if (_timer != null)
                 _timer.Dispose();
@@ -345,7 +351,7 @@ namespace FileSyncClient
                     LogError($"开始日期{_startDate}大于结束日期{_endDate}，请检查配置");
                     return;
                 }
-                
+
                 if (!string.IsNullOrEmpty(_startTime) && DateTime.TryParse(_startTime, out var startTime))
                 {
                     start = start.Add(startTime.TimeOfDay);
@@ -363,7 +369,8 @@ namespace FileSyncClient
                     end = end.AddDays(1); //如果开始时间大于结束时间，说明跨天了
                 }
 
-                LogInformation($"同步时间范围: {start} - {end}");
+                if (timeSet)
+                    LogInformation($"同步时间范围: {start} - {end}");
 
                 if (timeSet && (now < start || now > end))
                 {
@@ -377,12 +384,11 @@ namespace FileSyncClient
                 if (_deleteDaysBefore > 0)
                     FileOperator.DeleteOldFile(localFolder, DateTime.Now - TimeSpan.FromDays(_deleteDaysBefore));
 
-                if (IsConnected && _requestCounters.IsEmpty())
+                if (IsConnected&&_requests.IsEmpty())
                 {
                     LogInformation("开始新同步");
                     var request = new FileListTotalRequest(_clientId, DateTime.Now.Ticks, syncDaysBefore, _remoteFolder);
                     _session.SendMessage(request);
-                    _requestCounters.Increase(request.RequestId);
                 }
             }, null, 0, (int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
         }

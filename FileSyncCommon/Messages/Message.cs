@@ -1,14 +1,5 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Diagnostics;
-using System.Linq;
-using System.Net.Sockets;
+﻿using System.Collections.Concurrent;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using FileSyncCommon.Messages;
 using FileSyncCommon.Tools;
 using Serilog;
 
@@ -117,24 +108,20 @@ namespace FileSyncCommon.Messages
             }
 
             var num = Math.Ceiling((double)stream.Length / Packet.MaxLength);
-            var size = (ushort)Math.Ceiling(stream.Length / num);
             var result = new Packet[(int)num];
             var remains = (ulong)stream.Length;
-            uint i = 0;
+            var i = new AtomicInteger();
             while (remains > 0)
             {
-                if (remains < size)
-                {
-                    size = (ushort)remains;
-                }
-                result[i] = new Packet();
-                result[i].TotalLength = (ulong)stream.Length;
-                result[i].Sequence = i;
-                result[i].SliceData = new byte[size];
-                result[i].SliceLength = size;
-                stream.Read(result[i].SliceData, 0, size);
-                remains -= (ulong)size;
-                i++;
+                var currentSize = Math.Min(Packet.MaxLength, remains);
+                result[i.Value] = new Packet();
+                result[i.Value].TotalLength = (ulong)stream.Length;
+                result[i.Value].Sequence = (uint)i.Value;
+                result[i.Value].SliceData = new byte[currentSize];
+                result[i.Value].SliceLength = (ushort)currentSize;
+                stream.Read(result[i.Value].SliceData, 0, (int)currentSize);
+                i.Increment();
+                remains -= currentSize;
             }
             return result;
         }

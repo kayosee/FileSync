@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Diagnostics;
 using FileSyncCommon.Tools;
 namespace FileSyncCommon.Messages
 {
@@ -15,7 +8,7 @@ namespace FileSyncCommon.Messages
         private uint _sequence;
         private ushort _sliceLength;
         private byte[] _sliceData;
-        public const ushort MaxLength = 8190;
+        public const ushort MaxLength = 1400;
         public ulong TotalLength { get => _totalLength; set => _totalLength = value; }
         public ushort SliceLength { get => _sliceLength; set => _sliceLength = value; }
         public byte[] SliceData { get => _sliceData; set => _sliceData = value; }
