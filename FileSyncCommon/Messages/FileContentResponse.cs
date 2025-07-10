@@ -1,12 +1,5 @@
-﻿using FileSyncCommon.Messages;
-using FileSyncCommon.Tools;
+﻿using FileSyncCommon.Tools;
 using Force.Crc32;
-using Serilog;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace FileSyncCommon.Messages;
 
@@ -19,7 +12,7 @@ public class FileContentResponse : FileResponse
     private long _fileDataTotal;
     private uint _fileDataChecksum;
     private byte[] _fileData;
-    public const int MaxDataSize = 80000;
+    public const int MaxDataSize = 8000000;
     /// <summary>
     /// 最后一个文件段
     /// </summary>

@@ -19,11 +19,19 @@ namespace FileSyncCommon.Tools
         public bool State { get { return _state; } }
         public void Prohibited()
         {
+            if (!_state)
+            {
+                throw new InvalidOperationException("already Prohibited");
+            }
             _state = false;
             _event.Reset();
         }
         public void Promitted()
         {
+            if (_state)
+            {
+                throw new InvalidOperationException("already Promitted");
+            }
             _state = true;
             _event.Set();
         }

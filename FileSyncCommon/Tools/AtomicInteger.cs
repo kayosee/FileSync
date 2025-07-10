@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace FileSyncCommon.Tools
 {
-    internal class AtomicInteger
+    public class AtomicInteger
     {
         private ulong _count = 0;
         public AtomicInteger(ulong initial = 0)

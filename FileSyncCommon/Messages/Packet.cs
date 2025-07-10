@@ -8,7 +8,7 @@ namespace FileSyncCommon.Messages
         private uint _sequence;
         private ushort _sliceLength;
         private byte[] _sliceData;
-        public const ushort MaxLength = 1400;
+        public const ushort MaxLength = ushort.MaxValue;
         public ulong TotalLength { get => _totalLength; set => _totalLength = value; }
         public ushort SliceLength { get => _sliceLength; set => _sliceLength = value; }
         public byte[] SliceData { get => _sliceData; set => _sliceData = value; }

@@ -215,13 +215,10 @@ namespace FileSyncServer
             Log.Information("收到读取文件列表详情请求");
 
             var output = from r in _files.Values
-                         select new FileListDetailResponse(message.ClientId, message.RequestId, r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0, r.FullName, false);
+                         select new FileListDetail(r.FullName.Replace(_folder, ""), r.CreationTime.Ticks, r.LastAccessTime.Ticks, r.LastWriteTime.Ticks, r.Length, 0);
 
-            foreach (var file in output)
-            {
-                file.Path = file.Path.Replace(_folder, "");
-                _session.SendMessage(file);
-            }
+            var response = new FileListDetailResponse(message.ClientId, message.RequestId, message.Path, output.ToList());
+            _session.SendMessage(response);
         }
         protected void OnSocketError(SocketSession socketSession, Exception e)
         {
