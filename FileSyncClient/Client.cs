@@ -30,7 +30,9 @@ namespace FileSyncClient
 
         private String _startDate;
         private String _endDate;
-        private DeferredLock _requests = new DeferredLock();
+        private ConcurrentQueue<Message> _messageQueue = new ConcurrentQueue<Message>();
+        private UnquantifiedSignal _semaphore = new UnquantifiedSignal(1);
+        private RequestQueue _syncQueue = new RequestQueue();
         public delegate void FolderListResponseHandler(FolderListResponse response);
         public delegate void DisconnectedHandler();
         public delegate void LoginHandler();
@@ -74,48 +76,72 @@ namespace FileSyncClient
 
         private void OnSendPackage(Message message)
         {
+            _messageQueue.Enqueue(message);
+            _semaphore.Acquire();
         }
         private void OnReceivePackage(Message message)
         {
             if (message != null)
             {
-                if (message is FileResponse)
+                _messageQueue.Enqueue(message);
+
+                if (message is FileResponse fileResponse)
                 {
-                    var response = (FileResponse)message;
-                    if (response.Error != Error.None)
+                    if (fileResponse.Error != Error.None)
                     {
-                        LogError($"请求响应错误：{Enum.GetName(response.Error)}");
+                        LogError($"请求响应错误：{Enum.GetName(fileResponse.Error)}");
                     }
                 }
+                IEnumerable<ClientMessage> requests = null;
                 switch (message.MessageType)
                 {
                     case MessageType.AuthenticateResponse:
-                        DoAuthenticateResponse((AuthenticateResponse)message);
+                        requests = DoAuthenticateResponse((AuthenticateResponse)message);
                         break;
                     case MessageType.FileListTotalResponse:
-                        DoFileListTotalResponse((FileListTotalResponse)message);
+                        requests = DoFileListTotalResponse((FileListTotalResponse)message);
                         break;
                     case MessageType.FileListDetailResponse:
-                        DoFileListDetailResponse((FileListDetailResponse)message);
+                        requests = DoFileListDetailResponse((FileListDetailResponse)message);
                         break;
                     case MessageType.FileInfoResponse:
-                        DoFileInfoResponse((FileInfoResponse)message);
+                        requests = DoFileInfoResponse((FileInfoResponse)message);
                         break;
                     case MessageType.FileContentResponse:
-                        DoFileContentResponse((FileContentResponse)message);
+                        requests = DoFileContentResponse((FileContentResponse)message);
                         break;
                     case MessageType.FolderListResponse:
-                        DoFolderListResponse((FolderListResponse)message);
+                        requests = DoFolderListResponse((FolderListResponse)message);
                         break;
+                }
+
+                _semaphore.Release();//先处理完请求
+
+                if (requests != null)
+                {
+                    foreach (var request in requests)
+                    {
+                        if (request.Enqueue)//延迟发送，实现排队下载
+                        {
+                            _syncQueue.Enqueue(() =>
+                            {
+                                _session.SendMessage(request.Message);
+                            });
+                        }
+                        else
+                            _session.SendMessage(request.Message);
+                    }
                 }
             }
         }
-        private void DoFolderListResponse(FolderListResponse message)
+        private IEnumerable<ClientMessage> DoFolderListResponse(FolderListResponse message)
         {
             if (OnFolderListResponse != null)
                 OnFolderListResponse(message);
+
+            return Array.Empty<ClientMessage>();
         }
-        private void DoAuthenticateResponse(AuthenticateResponse message)
+        private IEnumerable<ClientMessage> DoAuthenticateResponse(AuthenticateResponse message)
         {
             if (!message.OK)
             {
@@ -129,25 +155,24 @@ namespace FileSyncClient
                 this._authorized = true;
                 OnLogin?.Invoke();
             }
+
+            return Array.Empty<ClientMessage>();
         }
-        private void DoFileInfoResponse(FileInfoResponse message)
+        private IEnumerable<ClientMessage> DoFileInfoResponse(FileInfoResponse message)
         {
             if (message.Error != Error.None)
             {
-                return;
+                return Array.Empty<ClientMessage>();
             }
 
             LogInformation($"发起请求文件信息: {message.Path}");
-
-            var response = new FileContentRequest(_clientId, message.RequestId, message.LastPos, message.Path);
-            _session.SendMessage(response);
+            return [new ClientMessage(new FileContentRequest(_clientId, message.RequestId, message.LastPos, message.Path))];
         }
-        private void DoFileListTotalResponse(FileListTotalResponse message)
+        private IEnumerable<ClientMessage> DoFileListTotalResponse(FileListTotalResponse message)
         {
-            var request = new FileListDetailRequest(_clientId, DateTime.Now.Ticks, _syncDaysBefore, _remoteFolder);
-            _session.SendMessage(request);
+            return [new ClientMessage(new FileListDetailRequest(_clientId, DateTime.Now.Ticks, _syncDaysBefore, _remoteFolder))];
         }
-        private void DoFileContentResponse(FileContentResponse fileResponse)
+        private IEnumerable<ClientMessage> DoFileContentResponse(FileContentResponse fileResponse)
         {
             try
             {
@@ -179,18 +204,18 @@ namespace FileSyncClient
                                     FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, null);
                                     FileOperator.SetupFile(path, fileResponse.LastWriteTime);
                                     LogInformation($"{fileResponse.Path}已经传输完成。");
-                                    _requests.Release();
+                                    _syncQueue.Dequeue();
                                 }
                                 else //写入位置信息
                                 {
                                     FileOperator.WriteFile(path + ".sync", fileResponse.Pos, fileResponse.FileData, fileResponse.Pos + fileResponse.FileDataLength);
-                                    _session.SendMessage(new FileContentRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path));
+                                    return [new ClientMessage(new FileContentRequest(_clientId, fileResponse.RequestId, fileResponse.Pos + fileResponse.FileDataLength, fileResponse.Path))];
                                 }
                             }
                             catch (Exception e)
                             {
                                 LogError(e.Message, e);
-                                _session.SendMessage(new FileContentRequest(_clientId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path));
+                                return [new ClientMessage(new FileContentRequest(_clientId, fileResponse.RequestId, fileResponse.Pos, fileResponse.Path))];
                             }
                             break;
                         }
@@ -207,62 +232,54 @@ namespace FileSyncClient
             {
                 LogError(e.Message, e);
             }
+            return new ClientMessage[0];
         }
-        private void DoFileListDetailResponse(FileListDetailResponse fileInformation)
+        private IEnumerable<ClientMessage> DoFileListDetailResponse(FileListDetailResponse fileInformation)
         {
-            var file = System.IO.Path.Combine(_localFolder, fileInformation.Path.TrimStart(System.IO.Path.DirectorySeparatorChar));
-            var request = new FileInfoRequest(_clientId, fileInformation.RequestId, 0, 0, fileInformation.Path);
-
-            var localFileInfo = new System.IO.FileInfo(file);
-            if (!localFileInfo.Exists)
+            var list = new List<ClientMessage>();
+            foreach (var fileInfo in fileInformation.List)
             {
-                if (File.Exists(file + ".sync"))//需要检验
+                var file = Path.Combine(_localFolder, fileInfo.Path.TrimStart(Path.DirectorySeparatorChar));
+                var request = new FileInfoRequest(_clientId, fileInformation.RequestId, 0, 0, fileInfo.Path);
+                var localFileInfo = new FileInfo(file);
+                if (!localFileInfo.Exists)
                 {
-                    try
+                    if (File.Exists(file + ".sync"))//需要检验
                     {
-                        var pos = FileOperator.GetLastPosition(file + ".sync");
-                        request.Checksum = FileOperator.GetCrc32(file + ".sync", pos);
-                        request.LastPos = pos;
-                        _requests.TryAcquire(() =>
+                        try
                         {
-                            _session.SendMessage(request);
-                            LogInformation($"正在检验续传文件:{fileInformation.Path}");
-                        });
-
+                            LogInformation($"正在检验续传文件:{fileInfo.Path}");
+                            var pos = FileOperator.GetLastPosition(file + ".sync");
+                            request.Checksum = FileOperator.GetCrc32(file + ".sync", pos);
+                            request.LastPos = pos;
+                            list.Add(new ClientMessage(request,true));
+                        }
+                        catch (Exception)
+                        {
+                            LogInformation($"文件校验失败:{fileInfo.Path}，重新下载。");
+                            list.Add(new ClientMessage(request, true));
+                        }
                     }
-                    catch (Exception)
+                    else
                     {
-                        _requests.TryAcquire(() =>
-                        {
-                            _session.SendMessage(request);
-                            LogInformation($"文件校验失败:{fileInformation.Path}，重新下载。");
-                        });
+                        LogInformation($"文件不存在:{fileInfo.Path}，发起下载。");
+                        list.Add(new ClientMessage(request, true));
                     }
                 }
                 else
                 {
-                    _requests.TryAcquire(() =>
+                    if (localFileInfo.Length == fileInfo.FileLength && localFileInfo.LastWriteTime.Ticks == fileInfo.LastWriteTime)//请求CHECKSUM，看看是不是一样
                     {
-                        _session.SendMessage(request);
-                        LogInformation($"文件不存在:{fileInformation.Path}，发起下载。");
-                    });
+                        LogInformation($"{fileInfo.Path}文件一致，无须更新");
+                    }
+                    else
+                    {
+                        LogInformation($"{fileInfo.Path}文件不一致，需要更新");
+                        list.Add(new ClientMessage(request, true));
+                    }
                 }
             }
-            else
-            {
-                if (localFileInfo.Length == fileInformation.FileLength && localFileInfo.LastWriteTime.Ticks == fileInformation.LastWriteTime)//请求CHECKSUM，看看是不是一样
-                {
-                    LogInformation($"{fileInformation.Path}文件一致，无须更新");
-                }
-                else
-                {
-                    _requests.TryAcquire(() =>
-                    {
-                        _session.SendMessage(request);
-                        LogInformation($"{fileInformation.Path}文件不一致，需要更新");
-                    });
-                }
-            }
+            return list;
         }
         protected void OnSocketError(SocketSession socketSession, Exception e)
         {
@@ -293,7 +310,7 @@ namespace FileSyncClient
                 _host = host;
                 _port = port;
                 Password = password;
-
+                _syncQueue.Clear();
                 _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
                 _socket.Connect(IPAddress.Parse(host), port);
                 OnConnected();
@@ -384,7 +401,7 @@ namespace FileSyncClient
                 if (_deleteDaysBefore > 0)
                     FileOperator.DeleteOldFile(localFolder, DateTime.Now - TimeSpan.FromDays(_deleteDaysBefore));
 
-                if (IsConnected&&_requests.IsEmpty())
+                if (IsConnected && _syncQueue.IsEmpty() && _semaphore.Wait(TimeSpan.FromSeconds(15)))
                 {
                     LogInformation("开始新同步");
                     var request = new FileListTotalRequest(_clientId, DateTime.Now.Ticks, syncDaysBefore, _remoteFolder);

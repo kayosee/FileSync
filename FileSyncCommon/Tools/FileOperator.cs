@@ -1,19 +1,6 @@
-﻿using FileSyncCommon.Exceptions;
-using Force.Crc32;
+﻿using Force.Crc32;
 using Serilog;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.IO.Pipes;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics.Arm;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 
 namespace FileSyncCommon.Tools;
 
@@ -113,7 +100,7 @@ public class FileOperator
         {
             var x = stream.Seek(position, SeekOrigin.Begin);
             if (x != position)
-                throw new FileSeekException(path, position);
+                throw new Exceptions.FileSeekException(path, position);
 
             var buffer = new byte[bytes.Length];
             stream.Read(buffer, 0, buffer.Length);
@@ -122,7 +109,7 @@ public class FileOperator
             var newChecksum = Crc32Algorithm.Compute(buffer);
             var oldChecksum = Crc32Algorithm.Compute(bytes);
             if (newChecksum != oldChecksum)
-                throw new FileChecksumException(path, position, oldChecksum, newChecksum);
+                throw new Exceptions.FileChecksumException(path, position, oldChecksum, newChecksum);
         }
         */
     }
