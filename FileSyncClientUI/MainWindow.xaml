@@ -43,6 +43,13 @@
                                 <dxlc:LayoutItem Label="端口">
                                     <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Port,Mode=TwoWay}" MinValue="1" MaxValue="65535"></dxe:SpinEdit>
                                 </dxlc:LayoutItem>
+                                <dxlc:LayoutItem Label="证书路径">
+                                    <dxe:ButtonEdit EditValue="{Binding Path=Certificate,Mode=TwoWay}" AllowDefaultButton="False">
+                                        <dxe:ButtonEdit.Buttons>
+                                            <dxe:ButtonInfo Content="选择证书" Command="{Binding SelectCertificate}"/>
+                                        </dxe:ButtonEdit.Buttons>
+                                    </dxe:ButtonEdit>
+                                </dxlc:LayoutItem>
                                 <dxlc:LayoutItem Label="加密密钥">
                                     <dxe:TextEdit EditValue="{Binding Path=Password,Mode=TwoWay}"></dxe:TextEdit>
                                 </dxlc:LayoutItem>

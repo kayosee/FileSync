@@ -11,11 +11,12 @@ namespace FileSyncServerCLI
         {
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             var folder = ConfigReader.GetString("folder", "\\");
+            var client = ConfigReader.GetString("client", "");
             var port = ConfigReader.GetInt("port", 2020);
             var password = ConfigReader.GetString("password", "");
             var certificate = ConfigReader.GetString("certificate", "");
             Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("run.log", rollingInterval: RollingInterval.Day).CreateLogger();
-            Server server = new Server(port, folder, certificate, password);
+            Server server = new Server(port, folder, certificate,client, password);
             server.Start();
             Log.Information($"正运行在：{port}端口，监视目录：{folder}");
             Console.ReadKey();

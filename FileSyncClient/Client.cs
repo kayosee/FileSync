@@ -317,15 +317,21 @@ namespace FileSyncClient
                 return false;
             }
         }
-
+        /// 验证服务器证书
         private bool ValidateServerCert(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
-            return true;// sslPolicyErrors == SslPolicyErrors.None;
+            var check = certificate != null
+                && certificate.Subject == $"CN={_host}"
+            && certificate is X509Certificate2 cert
+            && cert.NotBefore <= DateTime.Now
+            && cert.NotAfter >= DateTime.Now;
+            
+            return check;// sslPolicyErrors == SslPolicyErrors.None;
         }
 
         public void Disconnect()
         {
-            _packer.Disconnect();
+            _client.Close();
             OnDisconnected?.Invoke();
         }
         public void Start(string localFolder, string remoteFolder, int syncDaysBefore, int deleteDaysBefore, int interval)

@@ -9,7 +9,7 @@ namespace FileSyncClientCLI
     {
         static void Main(string[] args)
         {
-            var ip = ConfigReader.GetString("ip","");
+            var host = ConfigReader.GetString("host","");
             var port = ConfigReader.GetString("port", "");
             var localFolder = ConfigReader.GetString("localFolder", "");
             var remoteFolder = ConfigReader.GetString("remoteFolder", "");
@@ -26,7 +26,7 @@ namespace FileSyncClientCLI
                     client.Start(localFolder, remoteFolder, 0, 0, interval);
                 };
 
-                client.Connect(ip, int.Parse(port),certificate, password);
+                client.Connect(host, int.Parse(port),certificate, password);
                 
             }
             catch (Exception e)

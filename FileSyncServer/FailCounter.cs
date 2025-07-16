@@ -1,11 +1,5 @@
 ﻿using FileSyncCommon.Tools;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Net.Sockets;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace FileSyncServer
 {
@@ -26,9 +20,8 @@ namespace FileSyncServer
 
         private static Dictionary<string, FailClient> clients = new Dictionary<string, FailClient>();
         public static void Clear() { clients.Clear(); }
-        public static void ResetCount(Socket socket)
+        public static void Reset(IPEndPoint ip)
         {
-            var ip = socket.RemoteEndPoint as IPEndPoint;
             var id = ip.Address.ToString();
             if (clients.TryGetValue(id, out var client))
             {
@@ -36,12 +29,10 @@ namespace FileSyncServer
                 client.Counter = 0;
             }
         }
-        public static int AddCount(Socket socket)
+        public static int Increase(IPEndPoint ip)
         {
-            var ip = socket.RemoteEndPoint as IPEndPoint;
             var id = ip.Address.ToString();
-            FailClient client = null;
-            if (clients.TryGetValue(id, out client))
+            if (clients.TryGetValue(id, out var client))
             {
                 client.LastTime = DateTime.UtcNow;
                 client.Counter++;
@@ -53,9 +44,8 @@ namespace FileSyncServer
             }
             return client.Counter;
         }
-        public static int GetCount(Socket socket)
+        public static int Get(IPEndPoint ip)
         {
-            var ip = socket.RemoteEndPoint as IPEndPoint;
             var id = ip.Address.ToString();
             if (clients.TryGetValue(id, out var client))
             {

@@ -245,7 +245,23 @@ namespace FileSyncClientUI
         }
         [JsonIgnore]
         public string Logs => _logs.ToString();
-
+        [JsonIgnore]
+        public ICommand SelectCertificate
+        {
+            get
+            {
+                return new SimpleCommand(f => true, f =>
+                {
+                    OpenFileDialog dialog = new OpenFileDialog();
+                    dialog.Filter = "证书文件 (*.pfx)|*.pfx";
+                    if (dialog.ShowDialog() == DialogResult.OK)
+                    {
+                        Certificate = dialog.FileName;
+                    }
+                });
+            }
+        }
+        
         [JsonIgnore]
         public ICommand SelectLocalFolder
         {

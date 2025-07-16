@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.InteropServices.JavaScript;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 
@@ -17,19 +18,24 @@ namespace FileSyncServer
         private string _folder;
         private string _password;
         private string _certificate;
+        private string _client;
         private TcpListener? _listener;
-        public Server(int port, string folder, string certificate, string password)
+        public Server(int port, string folder, string certificate, string client, string password)
         {
             _port = port;
             _folder = folder;
             _certificate = certificate;
+            _client = client;
             _password = password;
         }
         public int Port { get => _port; set => _port = value; }
         public string Folder { get => _folder; set => _folder = value; }
         public void Start()
         {
-            X509Certificate2 serverCert = new X509Certificate2(_certificate, _password);
+            X509Certificate2 serverCert = new X509Certificate2(_certificate, _password,
+    X509KeyStorageFlags.MachineKeySet |
+    X509KeyStorageFlags.PersistKeySet |
+    X509KeyStorageFlags.Exportable);
             _listener = new TcpListener(IPAddress.Any, Port);
             _listener.Start();
 
@@ -80,10 +86,6 @@ namespace FileSyncServer
                         if (!events.WaitOne(TimeSpan.FromSeconds(ConfigReader.GetInt("timeout", 15))) || !success)
                             throw new TimeoutException("SSL authentication timed out.");
 
-                        if (sslStream.RemoteCertificate == null)
-                            throw new NullReferenceException("remote certificate is null.");
-
-                        var clientCert = new X509Certificate2(sslStream.RemoteCertificate);
                         var clientId = _sessions.Count;
                         var session = new ServerSession(clientId, _folder, sslStream);
                         session.OnDisconnect += Session_OnDisconnect;
@@ -102,14 +104,16 @@ namespace FileSyncServer
             _acceptor.Start();
         }
 
+        /// 验证客户端证书
         private bool ValidateCallback(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
-            return true;
-            // 添加详细验证
-            /*
-            if (sslPolicyErrors != SslPolicyErrors.None) return false;
-            return certificate != null && certificate is X509Certificate2 cert && cert.NotBefore <= DateTime.Now && cert.NotAfter >= DateTime.Now;
-            */
+            var check = certificate != null
+                && certificate.Subject == $"CN={_client}"
+            && certificate is X509Certificate2 cert
+            && cert.NotBefore <= DateTime.Now
+            && cert.NotAfter >= DateTime.Now;
+
+            return check;
         }
 
         private void Session_OnDisconnect(ServerSession session)
@@ -120,7 +124,7 @@ namespace FileSyncServer
 
         public void Stop()
         {
-            _listener.Stop();
+            _listener?.Stop();
         }
 
         private byte[] KeepAlive(int onOff, int keepAliveTime, int keepAliveInterval)
