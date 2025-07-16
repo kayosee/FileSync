@@ -1,4 +1,5 @@
-﻿using FileSyncServer;
+﻿using FileSyncCommon.Tools;
+using FileSyncServer;
 using Serilog;
 using System.Configuration;
 
@@ -9,12 +10,12 @@ namespace FileSyncServerCLI
         static void Main(string[] args)
         {
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
-            var folder = ConfigurationManager.AppSettings["folder"];
-            var port = int.Parse(ConfigurationManager.AppSettings["port"]);
-            var password = (ConfigurationManager.AppSettings["password"]);
-
+            var folder = ConfigReader.GetString("folder", "\\");
+            var port = ConfigReader.GetInt("port", 2020);
+            var password = ConfigReader.GetString("password", "");
+            var certificate = ConfigReader.GetString("certificate", "");
             Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("run.log", rollingInterval: RollingInterval.Day).CreateLogger();
-            Server server = new Server(port, folder, password);
+            Server server = new Server(port, folder, certificate, password);
             server.Start();
             Log.Information($"正运行在：{port}端口，监视目录：{folder}");
             Console.ReadKey();

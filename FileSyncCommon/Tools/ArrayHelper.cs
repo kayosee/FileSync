@@ -43,7 +43,7 @@ public static class ArrayHelper
         Span<byte> span = source;
         for (int i = 0; i < span.Length; i++)
         {
-            span[i] ^= key[start.GetAndNext()];
+            span[i] ^= 0xbb;
         }
     }
     public static bool IsEqualsWith(this byte[] a, byte[] b)

@@ -34,7 +34,7 @@ namespace FileSyncClientUI
             OnError += OnLogError;
             OnInformation += OnLogInformation;
             OnFolderListResponse += OnClientFolderListResponse;
-            OnLogin += OnClientLogin;
+            OnConnected += OnClientLogin;
             OnDisconnected += OnClientDisconnected;
         }
 
@@ -212,6 +212,17 @@ namespace FileSyncClientUI
                 OnPropertyChanged(nameof(Runable));
             }
         }
+        [JsonProperty]
+        public new string Certificate
+        {
+            get => base.Certificate;
+            set
+            {
+                base.Certificate = value;
+                OnPropertyChanged(nameof(Certificate));
+            }
+        }
+
         [JsonProperty]
         public new string Password
         {

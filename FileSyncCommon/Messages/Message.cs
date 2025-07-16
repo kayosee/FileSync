@@ -56,6 +56,11 @@ namespace FileSyncCommon.Messages
             }
 
             Message? sessionData = (Message?)ConvertMessage(messageType, stream);
+            if(sessionData == null)
+            {
+                Log.Error("转换消息出错");
+                return null;
+            }
             return sessionData;
         }
 

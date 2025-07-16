@@ -1,73 +1,115 @@
-﻿using Serilog;
-using System;
+﻿using FileSyncCommon.Tools;
+using Serilog;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Sockets;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
-using static System.Collections.Specialized.BitVector32;
-using FileSyncCommon;
-using FileSyncCommon.Tools;
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 
 namespace FileSyncServer
 {
     public class Server
     {
         private ConcurrentDictionary<int, ServerSession> _sessions = new ConcurrentDictionary<int, ServerSession>();
-        private Socket _socket;
-        private Thread _acceptor;
+        private Thread? _acceptor;
         private int _port;
         private string _folder;
-        private bool _encrypt;
-        private byte[] _encryptKey;
         private string _password;
-        private const int AuthenticateTimeout = 5;
-        public Server(int port, string folder, string password)
+        private string _certificate;
+        private TcpListener? _listener;
+        public Server(int port, string folder, string certificate, string password)
         {
             _port = port;
             _folder = folder;
+            _certificate = certificate;
             _password = password;
-            _encrypt = !string.IsNullOrEmpty(password);
-            if(_encrypt)
-            {
-                _encryptKey = Encoding.UTF8.GetBytes(password);
-            }
-                
         }
         public int Port { get => _port; set => _port = value; }
         public string Folder { get => _folder; set => _folder = value; }
         public void Start()
         {
-            _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-            _socket.Bind(new IPEndPoint(IPAddress.Any, Port));
-            _socket.Listen();
+            X509Certificate2 serverCert = new X509Certificate2(_certificate, _password);
+            _listener = new TcpListener(IPAddress.Any, Port);
+            _listener.Start();
 
             _acceptor = new Thread(() =>
             {
                 while (true)
                 {
-                    var client = _socket.Accept();
-                    Log.Information("新连接加入");
-
-                    if (FailCounter.GetCount(client) > ConfigReader.GetInt("maxFailCount",3))
+                    var client = _listener.AcceptTcpClient();
+                    var ip = client.Client.RemoteEndPoint as IPEndPoint;
+                    if (FailCounter.Get(ip) > ConfigReader.GetInt("maxFailCount", 3))
                     {
-                        Log.Warning($"黑名单IP{client.RemoteEndPoint},禁止连接");
+                        Log.Warning($"黑名单IP{client.Client.RemoteEndPoint},禁止连接");
                         client.Close();
                         continue;
                     }
 
-                    var clientId = _sessions.Count;
-                    var session = new ServerSession(clientId, _folder,_password, client, _encrypt, _encryptKey);
-                    session.OnAuthenticate += Session_OnAuthenticate;
-                    session.OnDisconnect += Session_OnDisconnect;
+                    client.ReceiveBufferSize = (int)Math.Pow(1024, 3);
+                    Log.Information("新连接加入");
+                    // 创建 SSL 流
+                    SslStream sslStream = new SslStream(client.GetStream(), false);
+                    try
+                    {
+                        var options = new SslServerAuthenticationOptions
+                        {
+                            ServerCertificate = serverCert,
+                            ClientCertificateRequired = true,
+                            EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                            RemoteCertificateValidationCallback = ValidateCallback
+                        };
+
+                        var events = new ManualResetEvent(false);
+                        var success = false;
+                        // 服务器身份验证
+                        ThreadPool.QueueUserWorkItem((f) =>
+                        {
+                            try
+                            {
+                                sslStream.AuthenticateAsServer(options);
+                                success = true;
+                            }
+                            catch
+                            {
+                                success = false;
+                            }
+                            events.Set();
+                        });
+
+                        if (!events.WaitOne(TimeSpan.FromSeconds(ConfigReader.GetInt("timeout", 15))) || !success)
+                            throw new TimeoutException("SSL authentication timed out.");
+
+                        if (sslStream.RemoteCertificate == null)
+                            throw new NullReferenceException("remote certificate is null.");
+
+                        var clientCert = new X509Certificate2(sslStream.RemoteCertificate);
+                        var clientId = _sessions.Count;
+                        var session = new ServerSession(clientId, _folder, sslStream);
+                        session.OnDisconnect += Session_OnDisconnect;
+                        _sessions.TryAdd(clientId, session);
+                    }
+                    catch (Exception ex)
+                    {
+                        FailCounter.Increase(ip);
+                        Log.Error($"SSL认证失败: {ex.Message}");
+                        client.Close();
+                    }
                 }
             });
             _acceptor.Name = "acceptor";
             _acceptor.IsBackground = true;
             _acceptor.Start();
+        }
 
+        private bool ValidateCallback(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+        {
+            return true;
+            // 添加详细验证
+            /*
+            if (sslPolicyErrors != SslPolicyErrors.None) return false;
+            return certificate != null && certificate is X509Certificate2 cert && cert.NotBefore <= DateTime.Now && cert.NotAfter >= DateTime.Now;
+            */
         }
 
         private void Session_OnDisconnect(ServerSession session)
@@ -76,24 +118,9 @@ namespace FileSyncServer
                 _sessions.Remove(session.Id, out var _);
         }
 
-        private void Session_OnAuthenticate(bool success, ServerSession session)
-        {
-            if (success)
-            {
-                FailCounter.ResetCount(session.SocketSession.Socket);
-                _sessions.TryAdd(session.Id, session);
-                session.SocketSession.Socket.IOControl(IOControlCode.KeepAliveValues, KeepAlive(1, 3000, 2000), null);//设置Keep-Alive参数
-            }
-            else
-            {
-                FailCounter.AddCount(session.SocketSession.Socket);
-                session.SocketSession.Disconnect();
-            }
-        }
-
         public void Stop()
         {
-            _socket.Close();
+            _listener.Stop();
         }
 
         private byte[] KeepAlive(int onOff, int keepAliveTime, int keepAliveInterval)

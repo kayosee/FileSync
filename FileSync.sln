@@ -21,6 +21,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Client", "Client", "{5B8205
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Server", "Server", "{CDD88416-1313-4E7C-B469-EA931F4F1DEB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CertificateMaker", "Test\CertificateMaker.csproj", "{A80D43D4-D64E-4B58-BD6B-2DDB1A1A78B3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,10 @@ Global
 		{84294874-E784-4891-86B6-B3CA6A999238}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{84294874-E784-4891-86B6-B3CA6A999238}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{84294874-E784-4891-86B6-B3CA6A999238}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A80D43D4-D64E-4B58-BD6B-2DDB1A1A78B3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A80D43D4-D64E-4B58-BD6B-2DDB1A1A78B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A80D43D4-D64E-4B58-BD6B-2DDB1A1A78B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A80D43D4-D64E-4B58-BD6B-2DDB1A1A78B3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

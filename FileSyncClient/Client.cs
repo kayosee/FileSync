@@ -1,11 +1,10 @@
-﻿using System.Collections.Concurrent;
-using System.ComponentModel.DataAnnotations;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
-using FileSyncCommon;
+﻿using FileSyncCommon;
 using FileSyncCommon.Messages;
 using FileSyncCommon.Tools;
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 
 namespace FileSyncClient
 {
@@ -19,56 +18,59 @@ namespace FileSyncClient
         private int _syncDaysBefore;
         private int _interval;
         private string _password;
-        private bool _authorized;
         private Timer? _timer;
-        private SocketSession _session;
-        private Socket _socket;
+        private StreamPacker _packer;
+        private TcpClient _client;
         private volatile bool _running;
         private int _deleteDaysBefore;
-        private String _startTime;
-        private String _endTime;
+        private string _startTime;
+        private string _endTime;
 
-        private String _startDate;
-        private String _endDate;
-        private ConcurrentQueue<Message> _messageQueue = new ConcurrentQueue<Message>();
+        private string _startDate;
+        private string _endDate;
+        //private ConcurrentQueue<Message> _messageQueue = new ConcurrentQueue<Message>();
         private UnquantifiedSignal _semaphore = new UnquantifiedSignal(1);
         private RequestQueue _syncQueue = new RequestQueue();
         public delegate void FolderListResponseHandler(FolderListResponse response);
         public delegate void DisconnectedHandler();
-        public delegate void LoginHandler();
+        public delegate void ConnectedHandler();
         public event FolderListResponseHandler? OnFolderListResponse;
         public event DisconnectedHandler? OnDisconnected;
-        public event LoginHandler? OnLogin;
+        public event ConnectedHandler? OnConnected;
 
         public string Host { get => _host; set => _host = value; }
         public int Port { get => _port; set => _port = value; }
         public int ClientId { get => _clientId; set => _clientId = value; }
         public string LocalFolder { get => _localFolder; set => _localFolder = value; }
         public int Interval { get => _interval; set => _interval = value; }
-        public String StartTime { get => _startTime; set => _startTime = value; }
-        public String EndTime { get => _endTime; set => _endTime = value; }
-        public String StartDate { get => _startDate; set => _startDate = value; }
-        public String EndDate { get => _endDate; set => _endDate = value; }
+        public string StartTime { get => _startTime; set => _startTime = value; }
+        public string EndTime { get => _endTime; set => _endTime = value; }
+        public string StartDate { get => _startDate; set => _startDate = value; }
+        public string EndDate { get => _endDate; set => _endDate = value; }
+        private string _certificate;
+        public string Certificate
+        {
+            get => _certificate;
+            set
+            {
+                _certificate = value;
+            }
+        }
         public string Password
         {
             get => _password;
             set
             {
                 _password = value;
-                Encrypt = !string.IsNullOrEmpty(_password);
-                if (Encrypt)
-                    EncryptKey = Encoding.UTF8.GetBytes(_password);
             }
         }
         public bool IsConnected
         {
             get
             {
-                return _socket != null && _socket.Connected;
+                return _client != null && _client.Connected;
             }
         }
-        public bool Encrypt { get; private set; }
-        public byte[] EncryptKey { get; private set; }
         public string RemoteFolder { get => _remoteFolder; set => _remoteFolder = value; }
         public bool Running { get => _running; }
         public int SyncDaysBefore { get => _syncDaysBefore; set => _syncDaysBefore = value; }
@@ -76,14 +78,14 @@ namespace FileSyncClient
 
         private void OnSendPackage(Message message)
         {
-            _messageQueue.Enqueue(message);
+            //_messageQueue.Enqueue(message);
             _semaphore.Acquire();
         }
         private void OnReceivePackage(Message message)
         {
             if (message != null)
             {
-                _messageQueue.Enqueue(message);
+                //_messageQueue.Enqueue(message);
 
                 if (message is FileResponse fileResponse)
                 {
@@ -95,9 +97,6 @@ namespace FileSyncClient
                 IEnumerable<ClientMessage> requests = null;
                 switch (message.MessageType)
                 {
-                    case MessageType.AuthenticateResponse:
-                        requests = DoAuthenticateResponse((AuthenticateResponse)message);
-                        break;
                     case MessageType.FileListTotalResponse:
                         requests = DoFileListTotalResponse((FileListTotalResponse)message);
                         break;
@@ -125,11 +124,11 @@ namespace FileSyncClient
                         {
                             _syncQueue.Enqueue(() =>
                             {
-                                _session.SendMessage(request.Message);
+                                _packer.SendMessage(request.Message);
                             });
                         }
                         else
-                            _session.SendMessage(request.Message);
+                            _packer.SendMessage(request.Message);
                     }
                 }
             }
@@ -138,23 +137,6 @@ namespace FileSyncClient
         {
             if (OnFolderListResponse != null)
                 OnFolderListResponse(message);
-
-            return Array.Empty<ClientMessage>();
-        }
-        private IEnumerable<ClientMessage> DoAuthenticateResponse(AuthenticateResponse message)
-        {
-            if (!message.OK)
-            {
-                LogError("验证失败，连接断开");
-                _session.Disconnect();
-            }
-            else
-            {
-                LogInformation("验证成功");
-                this._clientId = message.ClientId;
-                this._authorized = true;
-                OnLogin?.Invoke();
-            }
 
             return Array.Empty<ClientMessage>();
         }
@@ -252,7 +234,7 @@ namespace FileSyncClient
                             var pos = FileOperator.GetLastPosition(file + ".sync");
                             request.Checksum = FileOperator.GetCrc32(file + ".sync", pos);
                             request.LastPos = pos;
-                            list.Add(new ClientMessage(request,true));
+                            list.Add(new ClientMessage(request, true));
                         }
                         catch (Exception)
                         {
@@ -281,39 +263,52 @@ namespace FileSyncClient
             }
             return list;
         }
-        protected void OnSocketError(SocketSession socketSession, Exception e)
+        protected void OnStreamError(StreamPacker session, Exception e)
         {
             LogError(e.Message, e);
             Disconnect();
-            while (!_socket.Connected)
+            while (!_client.Connected)
             {
-                Connect(_host, _port, _password);
+                Connect(_host, _port,_certificate, _password);
             }
         }
-        protected void OnConnected()
+        protected void Connected(SslStream stream)
         {
-            _session = new SocketSession(_socket, Encrypt, EncryptKey);
-            _session.OnReceivePackage += OnReceivePackage;
-            _session.OnSendPackage += OnSendPackage;
-            _session.OnSocketError += OnSocketError;
-            var message = new AuthenticateRequest(0, 0, _password);
-            _session.SendMessage(message);
+            _packer = new StreamPacker(stream);
+            _packer.OnReceivePackage += OnReceivePackage;
+            _packer.OnSendPackage += OnSendPackage;
+            _packer.OnStreamError += OnStreamError;
+            OnConnected?.Invoke();
         }
         public bool Reconnect()
         {
-            return Connect(_host, _port, _password);
+            return Connect(_host, _port, _certificate, _password);
         }
-        public bool Connect(string host, int port, string password)
+        public bool Connect(string host, int port, string certificate, string password)
         {
             try
             {
                 _host = host;
                 _port = port;
-                Password = password;
+                _certificate = certificate;
+                _password = password;
                 _syncQueue.Clear();
-                _socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-                _socket.Connect(IPAddress.Parse(host), port);
-                OnConnected();
+
+                _client = new TcpClient(host, port);
+                _client.ReceiveBufferSize = (int)Math.Pow(1024, 3);
+                SslStream sslStream = new(_client.GetStream(), false,
+                                    new RemoteCertificateValidationCallback(ValidateServerCert), null);
+                var options = new SslClientAuthenticationOptions
+                {
+                    TargetHost = host,
+                    ClientCertificates = new X509CertificateCollection { new X509Certificate2(certificate, password) },
+                    EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                    CertificateRevocationCheckMode = X509RevocationMode.NoCheck
+                };
+
+                // 客户端身份验证
+                sslStream.AuthenticateAsClient(options);
+                Connected(sslStream);
                 return true;
             }
             catch (Exception e)
@@ -322,17 +317,19 @@ namespace FileSyncClient
                 return false;
             }
         }
+
+        private bool ValidateServerCert(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+        {
+            return true;// sslPolicyErrors == SslPolicyErrors.None;
+        }
+
         public void Disconnect()
         {
-            _session.Disconnect();
-            _authorized = false;
+            _packer.Disconnect();
             OnDisconnected?.Invoke();
         }
         public void Start(string localFolder, string remoteFolder, int syncDaysBefore, int deleteDaysBefore, int interval)
         {
-            if (!_authorized)
-                throw new UnauthorizedAccessException("尚未登录成功");
-
             if (string.IsNullOrEmpty(remoteFolder))
                 throw new ArgumentNullException(nameof(remoteFolder));
 
@@ -405,7 +402,7 @@ namespace FileSyncClient
                 {
                     LogInformation("开始新同步");
                     var request = new FileListTotalRequest(_clientId, DateTime.Now.Ticks, syncDaysBefore, _remoteFolder);
-                    _session.SendMessage(request);
+                    _packer.SendMessage(request);
                 }
             }, null, 0, (int)TimeSpan.FromMinutes(_interval).TotalMilliseconds);
         }
@@ -416,18 +413,17 @@ namespace FileSyncClient
         public void QueryFolders(string root)
         {
             if (IsConnected)
-                _session.SendMessage(new FolderListRequest(_clientId, DateTime.Now.Ticks, root));
+                _packer.SendMessage(new FolderListRequest(_clientId, DateTime.Now.Ticks, root));
         }
         public void Dispose()
         {
             if (IsConnected)
             {
                 Disconnect();
-                _session.Disconnect();
+                _packer.Disconnect();
                 if (_timer != null)
                     _timer.Dispose();
             }
         }
-
     }
 }
