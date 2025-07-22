@@ -5,7 +5,7 @@ using Serilog;
 using System.Net.Security;
 namespace FileSyncCommon
 {
-    public sealed class StreamPacker
+    public sealed class StreamPacker:IDisposable
     {
         private readonly int QueueSize = Environment.ProcessorCount;
         private volatile bool _disposed;
@@ -55,24 +55,13 @@ namespace FileSyncCommon
             _consumer.IsBackground = true;
             _consumer.Start();
         }
-        private void DoSocketError(StreamPacker streamManager, Exception e)
+        private void DoStreamError(StreamPacker packer, Exception e)
         {
             if (_disposed)
                 return;
 
-            Disconnect();
             OnStreamError?.Invoke(this, e);
-        }
-        public void Disconnect()
-        {
-            try
-            {
-                _disposed = true;
-                _queue.Dispose();
-            }
-            catch (Exception)
-            {
-            }
+            Dispose();
         }
         public void SendMessage(Message message)
         {
@@ -104,7 +93,7 @@ namespace FileSyncCommon
             }
             catch (Exception e)
             {
-                DoSocketError(this, e);
+                DoStreamError(this, e);
                 return false;
             }
         }
@@ -176,7 +165,7 @@ namespace FileSyncCommon
             }
             catch (Exception e)
             {
-                DoSocketError(this, e);
+                DoStreamError(this, e);
                 return 0;
             }
         }
@@ -198,9 +187,22 @@ namespace FileSyncCommon
 
             return Message.FromPackets(packets.ToArray());
         }
+
+        public void Dispose()
+        {
+            try
+            {
+                _disposed = true;
+                _queue.Dispose();
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         ~StreamPacker()
         {
-            Disconnect();
+            Dispose();
         }
     }
 }

@@ -43,14 +43,21 @@
                                 <dxlc:LayoutItem Label="端口">
                                     <dxe:SpinEdit EditValueType="{x:Type system:Int32}" EditValue="{Binding Path=Port,Mode=TwoWay}" MinValue="1" MaxValue="65535"></dxe:SpinEdit>
                                 </dxlc:LayoutItem>
-                                <dxlc:LayoutItem Label="证书路径">
-                                    <dxe:ButtonEdit EditValue="{Binding Path=Certificate,Mode=TwoWay}" AllowDefaultButton="False">
+                                <dxlc:LayoutItem Label="服务端证书路径">
+                                    <dxe:ButtonEdit EditValue="{Binding Path=ServerCert,Mode=TwoWay}" AllowDefaultButton="False">
                                         <dxe:ButtonEdit.Buttons>
-                                            <dxe:ButtonInfo Content="选择证书" Command="{Binding SelectCertificate}"/>
+                                            <dxe:ButtonInfo Content="选择证书" Command="{Binding SelectServerCert}"/>
                                         </dxe:ButtonEdit.Buttons>
                                     </dxe:ButtonEdit>
                                 </dxlc:LayoutItem>
-                                <dxlc:LayoutItem Label="加密密钥">
+                                <dxlc:LayoutItem Label="客户端证书路径">
+                                    <dxe:ButtonEdit EditValue="{Binding Path=ClientCert,Mode=TwoWay}" AllowDefaultButton="False">
+                                        <dxe:ButtonEdit.Buttons>
+                                            <dxe:ButtonInfo Content="选择证书" Command="{Binding SelectClientCert}"/>
+                                        </dxe:ButtonEdit.Buttons>
+                                    </dxe:ButtonEdit>
+                                </dxlc:LayoutItem>
+                                <dxlc:LayoutItem Label="客户端证书密钥">
                                     <dxe:TextEdit EditValue="{Binding Path=Password,Mode=TwoWay}"></dxe:TextEdit>
                                 </dxlc:LayoutItem>
                                 <dxlc:LayoutItem Label="同步间隔(分钟)">

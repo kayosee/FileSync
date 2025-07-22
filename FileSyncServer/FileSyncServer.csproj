@@ -17,6 +17,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Client.crt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="server.pfx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

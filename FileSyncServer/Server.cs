@@ -17,25 +17,25 @@ namespace FileSyncServer
         private int _port;
         private string _folder;
         private string _password;
-        private string _certificate;
-        private string _client;
+        private string _serverCert;
+        private string _clientCert;
         private TcpListener? _listener;
-        public Server(int port, string folder, string certificate, string client, string password)
+        public Server(int port, string folder, string serverCert, string clientCert, string client, string password)
         {
             _port = port;
             _folder = folder;
-            _certificate = certificate;
-            _client = client;
+            _serverCert = serverCert;
+            _clientCert = clientCert;
             _password = password;
         }
         public int Port { get => _port; set => _port = value; }
         public string Folder { get => _folder; set => _folder = value; }
         public void Start()
         {
-            X509Certificate2 serverCert = new X509Certificate2(_certificate, _password,
-    X509KeyStorageFlags.MachineKeySet |
-    X509KeyStorageFlags.PersistKeySet |
-    X509KeyStorageFlags.Exportable);
+            X509Certificate2 serverCert = new X509Certificate2(_serverCert, _password,
+                                            X509KeyStorageFlags.MachineKeySet |
+                                            X509KeyStorageFlags.PersistKeySet |
+                                            X509KeyStorageFlags.Exportable);
             _listener = new TcpListener(IPAddress.Any, Port);
             _listener.Start();
 
@@ -95,6 +95,8 @@ namespace FileSyncServer
                     {
                         FailCounter.Increase(ip);
                         Log.Error($"SSL认证失败: {ex.Message}");
+                        sslStream.Close();
+                        sslStream.Dispose();
                         client.Close();
                     }
                 }
@@ -107,13 +109,19 @@ namespace FileSyncServer
         /// 验证客户端证书
         private bool ValidateCallback(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
-            var check = certificate != null
-                && certificate.Subject == $"CN={_client}"
-            && certificate is X509Certificate2 cert
-            && cert.NotBefore <= DateTime.Now
-            && cert.NotAfter >= DateTime.Now;
-
-            return check;
+            if (certificate is X509Certificate2 cert2)
+            {
+                try
+                {
+                    var clientCert = new X509Certificate2(_clientCert);
+                    return cert2.GetRawCertData().SequenceEqual(clientCert.GetRawCertData());//验证证书内容是否一致
+                }
+                catch (Exception e)
+                {
+                    Log.Error($"验证服务器证书失败: {e.Message}", e);
+                }
+            }
+            return false;
         }
 
         private void Session_OnDisconnect(ServerSession session)
@@ -125,15 +133,6 @@ namespace FileSyncServer
         public void Stop()
         {
             _listener?.Stop();
-        }
-
-        private byte[] KeepAlive(int onOff, int keepAliveTime, int keepAliveInterval)
-        {
-            byte[] buffer = new byte[12];
-            BitConverter.GetBytes(onOff).CopyTo(buffer, 0);
-            BitConverter.GetBytes(keepAliveTime).CopyTo(buffer, 4);
-            BitConverter.GetBytes(keepAliveInterval).CopyTo(buffer, 8);
-            return buffer;
         }
     }
 }

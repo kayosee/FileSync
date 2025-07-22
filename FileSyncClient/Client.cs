@@ -3,6 +3,7 @@ using FileSyncCommon.Messages;
 using FileSyncCommon.Tools;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.ConstrainedExecution;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 
@@ -47,13 +48,22 @@ namespace FileSyncClient
         public string EndTime { get => _endTime; set => _endTime = value; }
         public string StartDate { get => _startDate; set => _startDate = value; }
         public string EndDate { get => _endDate; set => _endDate = value; }
-        private string _certificate;
-        public string Certificate
+        private string _clientCert;
+        private string _serverCert;
+        public string ClientCert
         {
-            get => _certificate;
+            get => _clientCert;
             set
             {
-                _certificate = value;
+                _clientCert = value;
+            }
+        }
+        public string ServerCert
+        {
+            get => _serverCert;
+            set
+            {
+                _serverCert = value;
             }
         }
         public string Password
@@ -269,7 +279,7 @@ namespace FileSyncClient
             Disconnect();
             while (!_client.Connected)
             {
-                Connect(_host, _port,_certificate, _password);
+                Connect(_host, _port,_clientCert,_serverCert, _password);
             }
         }
         protected void Connected(SslStream stream)
@@ -282,15 +292,16 @@ namespace FileSyncClient
         }
         public bool Reconnect()
         {
-            return Connect(_host, _port, _certificate, _password);
+            return Connect(_host, _port, _clientCert, _serverCert, _password);
         }
-        public bool Connect(string host, int port, string certificate, string password)
+        public bool Connect(string host, int port, string clientCert,string serverCert, string password)
         {
             try
             {
                 _host = host;
                 _port = port;
-                _certificate = certificate;
+                _clientCert = clientCert;
+                _serverCert = serverCert;
                 _password = password;
                 _syncQueue.Clear();
 
@@ -301,7 +312,7 @@ namespace FileSyncClient
                 var options = new SslClientAuthenticationOptions
                 {
                     TargetHost = host,
-                    ClientCertificates = new X509CertificateCollection { new X509Certificate2(certificate, password) },
+                    ClientCertificates = new X509CertificateCollection { new X509Certificate2(clientCert, password) },
                     EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
                     CertificateRevocationCheckMode = X509RevocationMode.NoCheck
                 };
@@ -314,23 +325,31 @@ namespace FileSyncClient
             catch (Exception e)
             {
                 LogError(e.Message, e);
+                _client?.Close();               
                 return false;
             }
         }
         /// 验证服务器证书
         private bool ValidateServerCert(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
-            var check = certificate != null
-                && certificate.Subject == $"CN={_host}"
-            && certificate is X509Certificate2 cert
-            && cert.NotBefore <= DateTime.Now
-            && cert.NotAfter >= DateTime.Now;
-            
-            return check;// sslPolicyErrors == SslPolicyErrors.None;
+            if (certificate is X509Certificate2 cert2)
+            {
+                try
+                {
+                    var serverCert = new X509Certificate2(_serverCert);
+                    return cert2.GetRawCertData().SequenceEqual(serverCert.GetRawCertData());//验证证书内容是否一致
+                }
+                catch (Exception e)
+                {
+                    LogError($"验证客户端证书失败: {e.Message}", e);
+                }
+            }
+            return false;
         }
 
         public void Disconnect()
         {
+            _packer.Dispose();
             _client.Close();
             OnDisconnected?.Invoke();
         }
@@ -426,7 +445,7 @@ namespace FileSyncClient
             if (IsConnected)
             {
                 Disconnect();
-                _packer.Disconnect();
+                _packer.Dispose();
                 if (_timer != null)
                     _timer.Dispose();
             }

@@ -20,7 +20,7 @@ namespace FileSyncServer
             _id = id;
             _folder = folder;
             _packer = new StreamPacker(stream);
-            _packer.OnStreamError += OnSocketError;
+            _packer.OnStreamError += OnStreamError;
             _packer.OnReceivePackage += OnReceivePackage;
         }
         protected void OnReceivePackage(Message message)
@@ -174,10 +174,10 @@ namespace FileSyncServer
             var response = new FileListDetailResponse(message.ClientId, message.RequestId, message.Path, output.ToList());
             _packer.SendMessage(response);
         }
-        protected void OnSocketError(StreamPacker tcpSession, Exception e)
+        protected void OnStreamError(StreamPacker tcpSession, Exception e)
         {
             Log.Information($"客户ID（{_id}）已经断开连接");
-            _packer.Disconnect();
+            _packer.Dispose();
 
             if (OnDisconnect != null)
                 OnDisconnect(this);

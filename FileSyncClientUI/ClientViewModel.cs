@@ -213,16 +213,25 @@ namespace FileSyncClientUI
             }
         }
         [JsonProperty]
-        public new string Certificate
+        public new string ClientCert
         {
-            get => base.Certificate;
+            get => base.ClientCert;
             set
             {
-                base.Certificate = value;
-                OnPropertyChanged(nameof(Certificate));
+                base.ClientCert = value;
+                OnPropertyChanged(nameof(ClientCert));
             }
         }
-
+        [JsonProperty]
+        public new string ServerCert
+        {
+            get => base.ServerCert;
+            set
+            {
+                base.ServerCert = value;
+                OnPropertyChanged(nameof(ServerCert));
+            }
+        }
         [JsonProperty]
         public new string Password
         {
@@ -246,7 +255,7 @@ namespace FileSyncClientUI
         [JsonIgnore]
         public string Logs => _logs.ToString();
         [JsonIgnore]
-        public ICommand SelectCertificate
+        public ICommand SelectClientCert
         {
             get
             {
@@ -256,12 +265,30 @@ namespace FileSyncClientUI
                     dialog.Filter = "证书文件 (*.pfx)|*.pfx";
                     if (dialog.ShowDialog() == DialogResult.OK)
                     {
-                        Certificate = dialog.FileName;
+                        ClientCert = dialog.FileName;
+                        OnPropertyChanged(nameof(ClientCert));
                     }
                 });
             }
         }
-        
+        [JsonIgnore]
+        public ICommand SelectServerCert
+        {
+            get
+            {
+                return new SimpleCommand(f => true, f =>
+                {
+                    OpenFileDialog dialog = new OpenFileDialog();
+                    dialog.Filter = "证书文件 (*.crt)|*.crt";
+                    if (dialog.ShowDialog() == DialogResult.OK)
+                    {
+                        ServerCert = dialog.FileName;
+                        OnPropertyChanged(nameof(ServerCert));
+                    }
+                });
+            }
+        }
+
         [JsonIgnore]
         public ICommand SelectLocalFolder
         {

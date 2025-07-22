@@ -15,7 +15,8 @@ namespace FileSyncClientCLI
             var remoteFolder = ConfigReader.GetString("remoteFolder", "");
             var interval = ConfigReader.GetInt("interval", 5);
             var password = ConfigReader.GetString("password", "");
-            var certificate = ConfigReader.GetString("certificate", "");
+            var clientCert = ConfigReader.GetString("clientCert", "");
+            var serverCert = ConfigReader.GetString("serverCert", "");
             Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("run.log", rollingInterval: RollingInterval.Day).CreateLogger();
 
             try
@@ -26,8 +27,8 @@ namespace FileSyncClientCLI
                     client.Start(localFolder, remoteFolder, 0, 0, interval);
                 };
 
-                client.Connect(host, int.Parse(port),certificate, password);
-                
+                client.Connect(host, int.Parse(port), clientCert, serverCert, password);
+
             }
             catch (Exception e)
             {
